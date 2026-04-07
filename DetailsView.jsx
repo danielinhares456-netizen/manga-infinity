@@ -1,15 +1,15 @@
 import React, { useState } from 'react';
 import { ChevronLeft, Star, Play, BookmarkPlus, Check } from 'lucide-react';
 import { doc, setDoc, deleteDoc } from "firebase/firestore";
-import { APP_ID } from '../utils/constants';
-import CommentsSection from '../components/CommentsSection';
+import { db } from './firebase';
+import { APP_ID } from './constants';
+import CommentsSection from './CommentsSection';
 
-export function DetailsView({ manga, libraryData, historyData, user, userProfileData, onBack, onChapterClick, onRequireLogin, showToast, db }) {
+export default function DetailsView({ manga, libraryData, historyData, user, userProfileData, onBack, onChapterClick, onRequireLogin, showToast }) {
   const [activeTab, setActiveTab] = useState('capitulos');
   const [showFullSynopsis, setShowFullSynopsis] = useState(false);
   
   const currentStatus = libraryData[manga.id];
-  
   const readHistory = historyData.filter(h => h.mangaId === manga.id);
   const lastRead = readHistory.length > 0 ? readHistory.reduce((prev, current) => (prev.timestamp > current.timestamp) ? prev : current) : null;
   
@@ -138,7 +138,7 @@ export function DetailsView({ manga, libraryData, historyData, user, userProfile
               )}
               
               {activeTab === 'comentarios' && (
-                 <CommentsSection mangaId={manga.id} user={user} userProfileData={userProfileData} onRequireLogin={onRequireLogin} showToast={showToast} />
+                 <CommentsSection mangaId={manga.id} chapterId={null} user={user} userProfileData={userProfileData} onRequireLogin={onRequireLogin} showToast={showToast} />
               )}
            </div>
         </div>
