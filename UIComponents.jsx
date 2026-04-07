@@ -10,7 +10,7 @@ export function SplashScreen() {
            <InfinityIcon className="w-14 h-14 text-white drop-shadow-[0_0_30px_#fff] relative z-10" strokeWidth={2.5} />
         </div>
         <h1 className="text-4xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-white to-fuchsia-400 tracking-[0.3em] md:tracking-[0.4em] ml-[0.3em] text-center leading-tight" style={{ backgroundSize: '200% auto', animation: 'glow-sweep 2.5s linear infinite' }}>MANGÁ<br/>INFINITY</h1>
-        <div className="mt-8 text-cyan-400 text-[10px] md:text-xs font-bold tracking-widest uppercase animate-pulse shadow-[0_0_10px_rgba(34,211,238,0.5)]">CONECTANDO AO VAZIO...</div>
+        <div className="mt-8 text-cyan-400 text-[10px] md:text-xs font-bold tracking-widest uppercase animate-pulse shadow-[0_0_10px_rgba(34,211,238,0.5)]">MERGULHANDO NO ABISMO...</div>
       </div>
     </div>
   );
