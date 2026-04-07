@@ -42,37 +42,17 @@ export default function ReaderView({ manga, chapter, user, userProfileData, onBa
   return (
       <div className="min-h-screen bg-[#030407] text-white relative flex flex-col overflow-x-hidden select-none" onScroll={handleScroll}>
          
-         {/* INJEÇÃO DE CSS PARA ANIMAÇÃO SURREAL */}
+         {/* NOVA ANIMAÇÃO: Materialização Etérea (Suave, brilhante e rápida) */}
          <style>{`
-            @keyframes surrealPageIn {
-                0% {
-                    opacity: 0;
-                    transform: translateX(100vw) perspective(1000px) rotateY(-30deg) scale(0.8);
-                    filter: saturate(3) brightness(1.5) blur(10px);
-                }
-                30% {
-                    opacity: 1;
-                    transform: translateX(-5vw) perspective(1000px) rotateY(10deg) scale(1.05);
-                    filter: saturate(2) brightness(1.2) blur(0px);
-                }
-                60% {
-                    transform: translateX(1vw) perspective(1000px) rotateY(-5deg) scale(0.98);
-                    filter: saturate(1.5) brightness(1.1);
-                }
-                100% {
-                    opacity: 1;
-                    transform: translateX(0) perspective(1000px) rotateY(0) scale(1);
-                    filter: saturate(1) brightness(1) blur(0px);
-                }
+            @keyframes etherealFade {
+                0% { opacity: 0; filter: blur(15px) brightness(1.5); transform: scale(0.98); }
+                100% { opacity: 1; filter: blur(0px) brightness(1); transform: scale(1); }
             }
-            
-            .animate-surreal-page {
-                animation: surrealPageIn 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
-                will-change: transform, opacity, filter;
+            .animate-ethereal {
+                animation: etherealFade 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
             }
          `}</style>
 
-         {/* Barra Superior */}
          {showUI && (
             <div className="fixed top-0 left-0 right-0 h-16 bg-[#030407]/95 backdrop-blur-xl z-50 flex justify-between items-center px-4 border-b border-white/5 shadow-md transition-opacity">
                <div className="flex items-center gap-3 overflow-hidden">
@@ -94,11 +74,11 @@ export default function ReaderView({ manga, chapter, user, userProfileData, onBa
             </div>
          )}
 
-         {/* Área de Leitura - APLICAÇÃO DA ANIMAÇÃO SURREAL */}
-         <div key={chapter.id} className="flex-1 w-full mx-auto cursor-pointer animate-surreal-page overflow-x-auto origin-right" onClick={() => setShowUI(!showUI)}>
+         {/* Container com a nova animação conectada */}
+         <div key={chapter.id} className="flex-1 w-full mx-auto cursor-pointer animate-ethereal overflow-x-auto origin-center" onClick={() => setShowUI(!showUI)}>
             {readMode === 'Páginas' ? (
                <div className="w-full h-screen flex flex-col items-center justify-center pt-16 pb-20 px-2 relative overflow-hidden">
-                  <img src={pages[currentPage]} className="max-w-full object-contain shadow-2xl transition-all duration-300" style={{ width: `${zoom * 100}%` }} />
+                  <img src={pages[currentPage]} className="max-h-full object-contain shadow-2xl transition-all duration-300" style={{ width: `${zoom * 100}%` }} />
                   
                   <div className="absolute inset-y-16 left-0 w-1/3 z-10 cursor-pointer" onClick={(e) => { e.stopPropagation(); setCurrentPage(p => Math.max(0, p - 1)); }}></div>
                   <div className="absolute inset-y-16 right-0 w-1/3 z-10 cursor-pointer" onClick={(e) => { e.stopPropagation(); setCurrentPage(p => Math.min(pages.length - 1, p + 1)); }}></div>
@@ -114,7 +94,6 @@ export default function ReaderView({ manga, chapter, user, userProfileData, onBa
             )}
          </div>
 
-         {/* Barra Inferior */}
          {showUI && (
             <div className="fixed bottom-0 left-0 right-0 bg-[#030407]/95 backdrop-blur-xl z-50 p-4 border-t border-white/5 shadow-lg flex justify-between items-center transition-opacity">
                <button onClick={() => prevChapter && onChapterClick(manga, prevChapter)} disabled={!prevChapter} className="bg-[#0d0d12] disabled:opacity-30 disabled:hover:border-white/10 border border-white/10 hover:border-cyan-500 px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-1 transition-colors"><ChevronLeft className="w-4 h-4"/> Anterior</button>
