@@ -3,22 +3,27 @@ import { ChevronLeft, ChevronRight, Star, ZoomIn, ZoomOut } from 'lucide-react';
 
 export default function ReaderView({ manga, chapter, user, userProfileData, onBack, onChapterClick, triggerRandomDrop, onMarkAsRead, readMode, onRequireLogin, showToast, libraryData, onToggleLibrary }) {
   const [showUI, setShowUI] = useState(true);
-  const [zoom, setZoom] = useState(1); // Controla o nível de zoom
+  const [zoom, setZoom] = useState(1); // 1 = 100%, 0.5 = 50%, 0.75 = 75%
   
   const readingTimeRef = useRef(0);
   const [currentPage, setCurrentPage] = useState(0);
 
+  // Efeito 1: Rola para o topo apenas quando o capítulo muda (Isso resolve o bug de ficar puxando pra cima)
+  useEffect(() => {
+      window.scrollTo(0, 0);
+      setCurrentPage(0);
+      setZoom(1);
+  }, [chapter.id]);
+
+  // Efeito 2: Timer de leitura
   useEffect(() => {
       readingTimeRef.current = 0;
-      setCurrentPage(0); // Reseta a página ao mudar de cap
-      setZoom(1); // Reseta o zoom ao mudar de cap
-      window.scrollTo(0, 0); // Joga pro topo ao trocar de capítulo
       const timer = setInterval(() => { readingTimeRef.current += 1; }, 1000);
       return () => {
           clearInterval(timer);
           onMarkAsRead(manga, chapter, readingTimeRef.current >= 45);
       };
-  }, [manga, chapter, onMarkAsRead]);
+  }, [manga.id, chapter.id]); // Removido o onMarkAsRead daqui para não causar re-render
 
   const currentIndex = manga.chapters.findIndex(c => c && c.id === chapter.id);
   const nextChapter = currentIndex > 0 ? manga.chapters[currentIndex - 1] : null; 
@@ -31,43 +36,44 @@ export default function ReaderView({ manga, chapter, user, userProfileData, onBa
       if (Math.random() < 0.005) triggerRandomDrop();
   };
 
-  // Função do Zoom (Clica pra aumentar 1.5x, 2x, e volta pra 1x)
+  // Ciclo do Zoom: 100% -> 50% -> 75% -> 100%
   const handleZoom = (e) => {
       e.stopPropagation();
-      setZoom(prev => prev === 1 ? 1.5 : prev === 1.5 ? 2 : 1);
+      setZoom(prev => prev === 1 ? 0.5 : prev === 0.5 ? 0.75 : 1);
   };
 
   return (
-      <div className="min-h-screen bg-[#030407] text-white relative flex flex-col overflow-x-hidden" onScroll={handleScroll}>
+      // select-none na div principal bloqueia a cópia no leitor inteiro
+      <div className="min-h-screen bg-[#030407] text-white relative flex flex-col overflow-x-hidden select-none" onScroll={handleScroll}>
          {/* Barra Superior */}
          {showUI && (
             <div className="fixed top-0 left-0 right-0 h-16 bg-[#030407]/95 backdrop-blur-xl z-50 flex justify-between items-center px-4 border-b border-white/5 shadow-md transition-opacity">
                <div className="flex items-center gap-3 overflow-hidden">
                   <button onClick={onBack} className="p-2 hover:text-cyan-400 transition-colors flex-shrink-0"><ChevronLeft className="w-6 h-6"/></button>
-                  {/* O stopPropagation() e as tags select-text / cursor-text isolam o texto para copiar! */}
                   <div className="flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+                     {/* select-text EXCLUSIVO no nome da obra, conforme você pediu */}
                      <span className="text-xs text-gray-400/80 font-bold truncate select-text cursor-text">{manga.title}</span>
-                     <span className="text-sm font-black text-cyan-400 truncate select-text cursor-text">Capítulo {chapter.number}</span>
+                     <span className="text-sm font-black text-cyan-400 truncate">Capítulo {chapter.number}</span>
                   </div>
                </div>
                <div className="flex items-center gap-2 flex-shrink-0">
                   <button onClick={() => onToggleLibrary(manga.id, libraryData[manga.id] === 'Favoritos' ? 'Remover' : 'Favoritos')} className="p-2 hover:text-yellow-400 transition-colors">
                      <Star className={`w-5 h-5 ${libraryData[manga.id] === 'Favoritos' ? 'fill-current text-yellow-400' : 'text-gray-400'}`}/>
                   </button>
-                  {/* Botão de Zoom de verdade agora */}
                   <button onClick={handleZoom} className="p-2 text-cyan-400 hover:text-white transition-colors flex items-center gap-1">
-                     {zoom > 1 ? <ZoomOut className="w-5 h-5"/> : <ZoomIn className="w-5 h-5"/>}
+                     {zoom < 1 ? <ZoomOut className="w-5 h-5"/> : <ZoomIn className="w-5 h-5"/>}
                      <span className="text-xs font-bold w-8">{zoom * 100}%</span>
                   </button>
                </div>
             </div>
          )}
 
-         {/* Área de Leitura - A chave 'key' faz o React rodar a animação de Fade-in sempre que muda o capítulo */}
-         <div key={chapter.id} className="flex-1 w-full mx-auto cursor-pointer animate-in fade-in zoom-in-95 duration-500 overflow-x-auto" onClick={() => setShowUI(!showUI)}>
+         {/* Área de Leitura - Animação alterada para fade-in limpo */}
+         <div key={chapter.id} className="flex-1 w-full mx-auto cursor-pointer animate-in fade-in duration-500 overflow-x-auto" onClick={() => setShowUI(!showUI)}>
             {readMode === 'Páginas' ? (
                <div className="w-full h-screen flex flex-col items-center justify-center pt-16 pb-20 px-2 relative overflow-hidden">
-                  <img src={pages[currentPage]} className="max-w-full max-h-full object-contain shadow-2xl transition-transform duration-300" style={{ transform: `scale(${zoom})` }} />
+                  {/* Zoom aplicado na largura e não no transform para evitar o bug do scroll */}
+                  <img src={pages[currentPage]} className="max-h-full object-contain shadow-2xl transition-all duration-300" style={{ width: `${zoom * 100}%` }} />
                   
                   <div className="absolute inset-y-16 left-0 w-1/3 z-10 cursor-pointer" onClick={(e) => { e.stopPropagation(); setCurrentPage(p => Math.max(0, p - 1)); }}></div>
                   <div className="absolute inset-y-16 right-0 w-1/3 z-10 cursor-pointer" onClick={(e) => { e.stopPropagation(); setCurrentPage(p => Math.min(pages.length - 1, p + 1)); }}></div>
@@ -75,7 +81,7 @@ export default function ReaderView({ manga, chapter, user, userProfileData, onBa
                   {showUI && <div className="absolute bottom-24 bg-black/80 px-4 py-1 rounded-full text-xs font-bold shadow-lg pointer-events-none">{currentPage + 1} / {pages.length}</div>}
                </div>
             ) : (
-               <div className="flex flex-col items-center pt-16 pb-20 transition-all duration-300 mx-auto" style={{ width: `${zoom * 100}%`, maxWidth: zoom > 1 ? 'none' : '48rem' }}>
+               <div className="flex flex-col items-center pt-16 pb-20 transition-all duration-300 mx-auto" style={{ width: `${zoom * 100}%` }}>
                   {pages.map((p, i) => (
                      <img key={i} src={p} className="w-full object-contain mb-1" loading="lazy" />
                   ))}
