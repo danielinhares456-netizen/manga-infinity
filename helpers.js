@@ -4,7 +4,7 @@ export const translateToPtBr = async (text) => {
         const res = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=pt&dt=t&q=${encodeURIComponent(text)}`);
         const data = await res.json();
         let translated = '';
-        for(let i=0; i<data[0].length; i++) { translated += data[0][i][0]; }
+        for(let i=0; i<data[0].length; i++) translated += data[0][i][0];
         return translated;
     } catch(e) { return text; }
 };
@@ -35,7 +35,6 @@ export const timeAgo = (timestamp) => {
     const diffMs = Date.now() - timeMs;
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    
     if (diffHours < 24) return 'NOVO';
     if (diffDays === 1) return '1 dia';
     return `${diffDays} dias`;
@@ -43,52 +42,31 @@ export const timeAgo = (timestamp) => {
 
 export const getRarityColor = (raridade) => {
     switch(raridade?.toLowerCase()) {
-        case 'comum': return 'text-gray-400';
-        case 'raro': return 'text-cyan-400';
-        case 'epico': return 'text-fuchsia-400';
-        case 'lendario': return 'text-amber-400';
-        case 'mitico': return 'text-red-500';
-        default: return 'text-gray-400';
+        case 'comum': return 'text-gray-400'; case 'raro': return 'text-cyan-400'; case 'epico': return 'text-fuchsia-400';
+        case 'lendario': return 'text-amber-400'; case 'mitico': return 'text-red-500'; default: return 'text-gray-400';
     }
 };
 
 export const getLevelRequirement = (level) => {
-    if (level === 1) return 100;
-    if (level === 2) return 250;
-    if (level === 3) return 500;
-    if (level === 4) return 1000;
+    if (level === 1) return 100; if (level === 2) return 250; if (level === 3) return 500; if (level === 4) return 1000;
     return Math.floor(1000 * Math.pow(1.2, level - 4));
 };
 
 export const getLevelTitle = (level) => {
-    if(level < 5) return "Leitor Novato";
-    if(level < 10) return "Explorador de Mundos";
-    if(level < 20) return "Caçador de Patentes";
-    if(level < 30) return "Mestre dos Enigmas";
-    if(level < 50) return "Monarca das Sombras";
-    if(level < 100) return "Lenda Viva";
+    if(level < 5) return "Leitor Novato"; if(level < 10) return "Explorador de Mundos"; if(level < 20) return "Caçador de Patentes";
+    if(level < 30) return "Mestre dos Enigmas"; if(level < 50) return "Monarca das Sombras"; if(level < 100) return "Lenda Viva";
     return "Entidade Cósmica";
 };
 
 export const addXpLogic = (currentXp, currentLvl, gainedXp) => {
-    let newXp = currentXp + gainedXp;
-    let newLvl = currentLvl;
-    let didLevelUp = false;
-    while (newXp >= getLevelRequirement(newLvl)) {
-        newXp -= getLevelRequirement(newLvl);
-        newLvl++;
-        didLevelUp = true;
-    }
+    let newXp = currentXp + gainedXp; let newLvl = currentLvl; let didLevelUp = false;
+    while (newXp >= getLevelRequirement(newLvl)) { newXp -= getLevelRequirement(newLvl); newLvl++; didLevelUp = true; }
     return { newXp, newLvl, didLevelUp };
 };
 
 export const removeXpLogic = (currentXp, currentLvl, penaltyXp) => {
-    let newXp = currentXp - penaltyXp;
-    let newLvl = currentLvl;
-    while (newXp < 0 && newLvl > 1) {
-        newLvl--;
-        newXp += getLevelRequirement(newLvl);
-    }
+    let newXp = currentXp - penaltyXp; let newLvl = currentLvl;
+    while (newXp < 0 && newLvl > 1) { newLvl--; newXp += getLevelRequirement(newLvl); }
     if (newXp < 0) { newXp = 0; newLvl = 1; }
     return { newXp, newLvl };
 };
