@@ -91,7 +91,7 @@ export function LoginView({ onLoginSuccess, onGuestAccess }) {
 
           <div className="mt-8 pt-6 border-t border-red-900/20 text-center flex flex-col gap-4 relative z-10">
             <button onClick={() => { setIsLogin(!isLogin); setError(''); }} className="text-red-400/80 hover:text-red-400 text-[11px] uppercase tracking-wider font-black transition-colors">
-              {isLogin ? 'Sem Elo? Despertar agora' : 'Já possui um Elo? Conectar-se'}
+              {isLogin ? 'Sem cadastro? Despertar agora' : 'Já possui uma conta? Conectar-se'}
             </button>
             <button onClick={onGuestAccess} className="text-red-900 hover:text-red-500/80 text-[9px] font-black uppercase tracking-[0.2em] transition-colors">
               Vagar pelas sombras (Acesso Visitante)
