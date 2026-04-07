@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Target, Hexagon, ShoppingCart, ShieldAlert, Trophy, Check, Compass, Timer, Star, Skull, Zap, Search, Sparkles, Clock, Crown, Medal } from 'lucide-react';
-import { doc, updateDoc, collectionGroup, query, orderBy, limit, getDocs } from "firebase/firestore";
+import { Target, Hexagon, ShoppingCart, ShieldAlert, Trophy, Check, Compass, Timer, Star, Skull, Zap, Search, Sparkles, Clock, Crown, Medal, Key } from 'lucide-react';
+import { doc, updateDoc, collectionGroup, getDocs } from "firebase/firestore";
 import { db } from './firebase';
-import { translateToPtBr, addXpLogic, removeXpLogic, getRarityColor, getLevelTitle } from './helpers';
+import { addXpLogic, removeXpLogic, getLevelTitle, getRarityColor } from './helpers';
 
 export function NexoView({ user, userProfileData, showToast, mangas, db, appId, onNavigate, onLevelUp, synthesizeCrystal, shopItems, buyItem, equipItem }) {
     const [activeTab, setActiveTab] = useState("Missões");
@@ -22,18 +22,18 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
     const fetchRanking = async () => {
         setLoadingRank(true);
         try {
-            const q = query(collectionGroup(db, 'profile'), orderBy('level', 'desc'), orderBy('xp', 'desc'), limit(50));
-            const snap = await getDocs(q);
+            // Busca dados sem limite do firebase e organiza via JS para evitar bug de indice no celular
+            const snap = await getDocs(collectionGroup(db, 'profile'));
             let rankData = [];
             snap.forEach(doc => {
                 if(doc.ref.path.includes('main')) { 
                    rankData.push({ id: doc.ref.parent.parent.id, ...doc.data() });
                 }
             });
-            setRankingList(rankData);
+            rankData.sort((a, b) => (b.level || 1) - (a.level || 1) || (b.xp || 0) - (a.xp || 0));
+            setRankingList(rankData.slice(0, 50));
         } catch (e) {
-            console.error(e);
-            showToast("Aviso: O Firebase está construindo o Ranking (Pode exigir índice).", "warning");
+            showToast("Erro ao ler os registros do Abismo.", "error");
         } finally {
             setLoadingRank(false);
         }
@@ -61,41 +61,6 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
         setTimeout(() => { generateMission(difficulty); }, 2500); 
     };
 
-    const fetchGlobalEnigma = async (difficulty, snippetLength) => {
-        try {
-            const type = Math.random() > 0.5 ? 'manga' : 'anime';
-            const randomPage = Math.floor(Math.random() * 4) + 1; 
-            const res = await fetch(`https://api.jikan.moe/v4/top/${type}?limit=25&page=${randomPage}`);
-            const data = await res.json();
-            const topList = data.data;
-            if(!topList || topList.length === 0) return null;
-
-            const itemApi = topList[Math.floor(Math.random() * topList.length)];
-            if(!itemApi || !itemApi.title || !itemApi.synopsis) return null;
-            
-            // LIMPANDO A SINOPSE GRINGA (Tira trechos de autoria)
-            let cleanSynopsis = itemApi.synopsis.replace(/\[Written by MAL Rewrite\]/g, '').split('Source:')[0].trim();
-            
-            let shortSynopsis = cleanSynopsis.substring(0, snippetLength) + "...";
-            let translatedSynopsis = await translateToPtBr(shortSynopsis);
-            
-            let genres = itemApi.genres && itemApi.genres.length > 0 ? itemApi.genres.map(g => g.name).slice(0, 3).join(', ') : "Desconhecidos";
-            let translatedGenres = await translateToPtBr(genres);
-            
-            const acceptedAnswers = new Set();
-            if(itemApi.title) acceptedAnswers.add(itemApi.title.toLowerCase().trim());
-            if(itemApi.title_english) acceptedAnswers.add(itemApi.title_english.toLowerCase().trim());
-            if(itemApi.title_japanese) acceptedAnswers.add(itemApi.title_japanese.toLowerCase().trim());
-            if(itemApi.titles) itemApi.titles.forEach(t => acceptedAnswers.add(t.title.toLowerCase().trim()));
-
-            return { 
-                q: `[SINAL MULTIVERSAL INTERCEPTADO]\n\nFragmento:\n"${translatedSynopsis}"\n\nGêneros: ${translatedGenres}\n\nQual é o nome da obra?`, 
-                a: Array.from(acceptedAnswers), 
-                rawId: itemApi.mal_id 
-            };
-        } catch(e) { return null; }
-    };
-
     const generateMission = async (difficulty) => {
         try {
             const now = Date.now();
@@ -103,57 +68,59 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
             let newMission = null;
 
             const rankConfigs = {
-                'Rank E': { rxp: 30, rcoin: 15, pxp: 15, pcoin: 10, enigmaTries: 3, enigmaTimeMin: 15, charLimit: 300 },
-                'Rank C': { rxp: 100, rcoin: 50, pxp: 50, pcoin: 25, enigmaTries: 3, enigmaTimeMin: 10, charLimit: 200 },
-                'Rank B': { rxp: 150, rcoin: 80, pxp: 80, pcoin: 40, enigmaTries: 2, enigmaTimeMin: 8, charLimit: 120 },
-                'Rank A': { rxp: 300, rcoin: 150, pxp: 150, pcoin: 80, enigmaTries: 2, enigmaTimeMin: 5, charLimit: 80 },
-                'Rank S': { rxp: 800, rcoin: 400, pxp: 400, pcoin: 200, enigmaTries: 1, enigmaTimeMin: 3, charLimit: 60 },
-                'Rank SSS':{ rxp: 2000, rcoin: 1000, pxp: 1000, pcoin: 500, enigmaTries: 1, enigmaTimeMin: 1, charLimit: 40 }
+                'Rank E': { rxp: 30, rcoin: 15, pxp: 15, pcoin: 10, time: 15, charLimit: 300, enigmaTries: 3 },
+                'Rank C': { rxp: 100, rcoin: 50, pxp: 50, pcoin: 25, time: 10, charLimit: 200, enigmaTries: 3 },
+                'Rank B': { rxp: 150, rcoin: 80, pxp: 80, pcoin: 40, time: 8, charLimit: 120, enigmaTries: 2 },
+                'Rank A': { rxp: 300, rcoin: 150, pxp: 150, pcoin: 80, time: 5, charLimit: 80, enigmaTries: 2 },
+                'Rank S': { rxp: 800, rcoin: 400, pxp: 400, pcoin: 200, time: 3, charLimit: 60, enigmaTries: 1 },
+                'Rank SSS':{ rxp: 2000, rcoin: 1000, pxp: 1000, pcoin: 500, time: 1, charLimit: 40, enigmaTries: 1 }
             };
             const conf = rankConfigs[difficulty];
 
-            // EXATAMENTE 50% de chance para API e 50% para Banco de Dados
-            const isAPI = Math.random() < 0.5;
+            let validLocalMangas = mangas.filter(item => !completed.includes("enigma_local_" + item.id) && item.synopsis && item.synopsis.length > 50);
+            
+            if(validLocalMangas.length > 0) { 
+                const randomManga = validLocalMangas[Math.floor(Math.random() * validLocalMangas.length)];
+                
+                // 50% de chance para Caçada Visual, 50% de chance para IA do Abismo (Perguntas)
+                const isHunt = Math.random() < 0.5;
 
-            if (isAPI) {
-                const apiEnigma = await fetchGlobalEnigma(difficulty, conf.charLimit);
-                if (apiEnigma) {
-                    newMission = { id: Date.now().toString(), type: 'enigma', difficulty, title: "Multiverso Global", question: apiEnigma.q, answer: apiEnigma.a, attemptsLeft: conf.enigmaTries, rewardXp: conf.rxp, rewardCoins: conf.rcoin, penaltyXp: conf.pxp, penaltyCoins: conf.pcoin, deadline: now + (conf.enigmaTimeMin * 60 * 1000) };
-                    completed.push("api_" + apiEnigma.rawId);
+                if (isHunt) {
+                    let cleanDesc = randomManga.synopsis.replace(/<[^>]*>?/gm, '').replace(new RegExp(randomManga.title, 'gi'), '█████');
+                    let genres = randomManga.genres ? randomManga.genres.join(', ') : 'Desconhecidos';
+                    
+                    let q = `[CAÇADA NO ABISMO]\n\nGêneros: ${genres}\n\nFragmento:\n"${cleanDesc.substring(0, conf.charLimit)}..."\n\nSua Missão: Descubra qual é esta obra, busque no catálogo e acesse a página dela.`;
+                    
+                    newMission = { id: Date.now().toString(), type: 'search_local', difficulty, title: "Busca no Vazio", question: q, targetManga: randomManga.id, targetTitle: randomManga.title, rewardXp: conf.rxp, rewardCoins: conf.rcoin, penaltyXp: conf.pxp, penaltyCoins: conf.pcoin, deadline: now + (conf.time * 60 * 1000) };
+                } else {
+                    let q = `[ORÁCULO DA IA CÓSMICA]\n\nAnalisando registros do Vazio...\n`;
+                    if (randomManga.author) q += `• Autoria rastreada: ${randomManga.author}\n`;
+                    if (randomManga.genres && randomManga.genres.length > 0) q += `• Frequência de Gêneros: ${randomManga.genres.slice(0,3).join(', ')}\n`;
+                    if (randomManga.chapters) q += `• Fragmentos (Capítulos): ${randomManga.chapters.length}\n`;
+                    q += `\nQual é o nome exato desta obra gravada no Infinito?`;
+
+                    newMission = { id: Date.now().toString(), type: 'enigma', difficulty, title: "Enigma da IA", question: q, answer: [randomManga.title.toLowerCase().trim()], attemptsLeft: conf.enigmaTries, rewardXp: conf.rxp, rewardCoins: conf.rcoin, penaltyXp: conf.pxp, penaltyCoins: conf.pcoin, deadline: now + (conf.time * 60 * 1000) };
                 }
+                completed.push("enigma_local_" + randomManga.id);
             } 
             
-            // Se caiu Banco Local, ou se a API falhar
-            if (!newMission) { 
-                let validLocalMangas = mangas.filter(item => !completed.includes("enigma_local_" + item.id) && item.synopsis && item.synopsis.length > 50);
-                if(validLocalMangas.length > 0) { 
-                    const randomManga = validLocalMangas[Math.floor(Math.random() * validLocalMangas.length)];
-                    
-                    let cleanDesc = randomManga.synopsis.replace(/<[^>]*>?/gm, '').replace(new RegExp(randomManga.title, 'gi'), '█████');
-                    
-                    let q = `[ARQUIVO DE BANCO DE DADOS LOCAL]\n\nFragmento:\n"${cleanDesc.substring(0, conf.charLimit)}..."\n\nQue obra é essa? Vá até a página dela para concluir o contrato.`;
-                    
-                    newMission = { id: Date.now().toString(), type: 'search_local', difficulty, title: "Caçada Infinity", question: q, targetManga: randomManga.id, targetTitle: randomManga.title, rewardXp: conf.rxp, rewardCoins: conf.rcoin, penaltyXp: conf.pxp, penaltyCoins: conf.pcoin, deadline: now + (conf.enigmaTimeMin * 60 * 1000) };
-                    completed.push("enigma_local_" + randomManga.id);
-                }
-            }
-
-            // Se mesmo assim falhar tudo, cai como leitura básica de compensação
+            // Se o BD Local estiver vazio ou lido, manda Missão de Leitura
             if (!newMission && mangas.length > 0) {
                  const randomManga = mangas[Math.floor(Math.random() * mangas.length)];
                  let readTarget = difficulty === 'Rank E' ? 1 : difficulty === 'Rank C' ? 2 : difficulty === 'Rank B' ? 3 : difficulty === 'Rank A' ? 5 : difficulty === 'Rank S' ? 10 : 20;
                  if(randomManga.chapters && randomManga.chapters.length < readTarget) readTarget = randomManga.chapters.length || 1;
 
-                 newMission = { id: Date.now().toString(), type: 'read', difficulty, title: `Missão de Leitura`, desc: `Leia ${readTarget} capítulo(s) da obra "${randomManga.title}".`, targetManga: randomManga.id, targetCount: readTarget, currentCount: 0, rewardXp: conf.rxp, rewardCoins: conf.rcoin, penaltyXp: conf.pxp, penaltyCoins: conf.pcoin, deadline: now + (readTarget * 45 * 60 * 1000) };
+                 newMission = { id: Date.now().toString(), type: 'read', difficulty, title: `Exploração do Abismo`, desc: `Leia ${readTarget} capítulo(s) da obra "${randomManga.title}".`, targetManga: randomManga.id, targetCount: readTarget, currentCount: 0, rewardXp: conf.rxp, rewardCoins: conf.rcoin, penaltyXp: conf.pxp, penaltyCoins: conf.pcoin, deadline: now + (readTarget * 45 * 60 * 1000) };
+                 completed.push("read_" + randomManga.id);
             }
 
             if (newMission) {
                 await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'main'), { activeMission: newMission, completedMissions: completed });
-                showToast(`Contrato Assinado!`, "success");
+                showToast(`Contrato do Abismo Assinado!`, "success");
             } else {
-                showToast("Nenhuma missão disponível no momento.", "error");
+                showToast("O Abismo está vazio de missões no momento.", "error");
             }
-        } catch(e) { showToast("Falha na Fenda do Nexo.", "error"); } finally { setIsForgingMission(false); }
+        } catch(e) { showToast("Falha na Fenda do Infinito.", "error"); } finally { setIsForgingMission(false); }
     };
     
     const handleEnigmaSubmit = async (e) => {
@@ -170,7 +137,7 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
            let currentCompleted = userProfileData.completedMissions || [];
            if (!currentCompleted.includes(m.question)) currentCompleted = [...currentCompleted, m.question];
            await updateDoc(profileRef, { coins: newCoins, xp: newXp, level: newLvl, activeMission: null, completedMissions: currentCompleted });
-           setEnigmaAnswer(''); showToast(`Enigma Desvendado! Recebeu ${m.rewardXp} XP e ${m.rewardCoins} Moedas.`, "success");
+           setEnigmaAnswer(''); showToast(`Enigma do Abismo Desvendado! Recebeu ${m.rewardXp} XP.`, "success");
            if(didLevelUp) onLevelUp(newLvl); 
         } else {
            const attempts = m.attemptsLeft - 1;
@@ -178,9 +145,9 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
                let newCoins = Math.max(0, (userProfileData.coins || 0) - m.penaltyCoins);
                let { newXp, newLvl } = removeXpLogic(userProfileData.xp || 0, userProfileData.level || 1, m.penaltyXp);
                await updateDoc(profileRef, { coins: newCoins, xp: newXp, level: newLvl, activeMission: null });
-               showToast(`Falhou! O Sistema cobrou a penalidade.`, "error");
+               showToast(`Falhou! O Abismo cobrou a penalidade.`, "error");
            } else {
-               await updateDoc(profileRef, { 'activeMission.attemptsLeft': attempts }); showToast(`Incorreto. ${attempts} tentativa(s) restante(s).`, "error");
+               await updateDoc(profileRef, { 'activeMission.attemptsLeft': attempts }); showToast(`Incorreto. ${attempts} vida(s) restante(s).`, "error");
            }
            setEnigmaAnswer('');
         }
@@ -192,10 +159,10 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
         let newCoins = Math.max(0, (userProfileData.coins || 0) - m.penaltyCoins);
         let { newXp, newLvl } = removeXpLogic(userProfileData.xp || 0, userProfileData.level || 1, m.penaltyXp);
         let currentCompleted = userProfileData.completedMissions || [];
-        const blockItem = m.type === 'search_local' ? "enigma_local_" + m.targetManga : "read_" + m.targetManga;
+        const blockItem = m.type === 'search_local' || m.type === 'enigma' ? "enigma_local_" + m.targetManga : "read_" + m.targetManga;
         if (!currentCompleted.includes(blockItem)) currentCompleted = [...currentCompleted, blockItem];
         await updateDoc(profileRef, { coins: newCoins, xp: newXp, level: newLvl, activeMission: null, completedMissions: currentCompleted });
-        showToast(`Desistência punida: -${m.penaltyXp}XP | -${m.penaltyCoins} Moedas`, "error");
+        showToast(`Desistência punida pelo Abismo: -${m.penaltyXp}XP`, "error");
     };
 
     const runSynthesis = async () => {
@@ -204,15 +171,15 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
         setTimeout(async () => {
           const res = await synthesizeCrystal(); setSynthesizing(false);
           if (res && res.success) showToast(`Síntese Concluída! +${res.wonCoins} Moedas | +${res.wonXp} XP`, 'success');
-          else showToast(`Falha na Síntese! Os cristais foram destruídos.`, 'error');
+          else showToast(`Falha na Síntese! Os cristais foram consumidos pelo Vazio.`, 'error');
         }, 1500);
     };
 
     const RANK_CARDS = [
-        { id: 'Rank E', color: 'text-cyan-400', border: 'border-cyan-500/30', hover: 'hover:border-cyan-500/60', btn: 'bg-cyan-600 hover:bg-cyan-500', rxp: 30, rcoin: 15, success: '95%', time: '~ 15 min' },
-        { id: 'Rank C', color: 'text-emerald-400', border: 'border-emerald-500/30', hover: 'hover:border-emerald-500/60', btn: 'bg-emerald-600 hover:bg-emerald-500', rxp: 100, rcoin: 50, success: '80%', time: '~ 30 min' },
-        { id: 'Rank B', color: 'text-violet-400', border: 'border-violet-500/30', hover: 'hover:border-violet-500/60', btn: 'bg-violet-600 hover:bg-violet-500', rxp: 150, rcoin: 80, success: '65%', time: '~ 1 Hora' },
-        { id: 'Rank A', color: 'text-fuchsia-400', border: 'border-fuchsia-500/30', hover: 'hover:border-fuchsia-500/60', btn: 'bg-fuchsia-600 hover:bg-fuchsia-500', rxp: 300, rcoin: 150, success: '40%', time: '~ 3 Horas' },
+        { id: 'Rank E', color: 'text-cyan-400', border: 'border-cyan-500/30', hover: 'hover:border-cyan-500/60', btn: 'bg-cyan-600 hover:bg-cyan-500', rxp: 30, rcoin: 15, time: '~ 15 min' },
+        { id: 'Rank C', color: 'text-emerald-400', border: 'border-emerald-500/30', hover: 'hover:border-emerald-500/60', btn: 'bg-emerald-600 hover:bg-emerald-500', rxp: 100, rcoin: 50, time: '~ 30 min' },
+        { id: 'Rank B', color: 'text-violet-400', border: 'border-violet-500/30', hover: 'hover:border-violet-500/60', btn: 'bg-violet-600 hover:bg-violet-500', rxp: 150, rcoin: 80, time: '~ 1 Hora' },
+        { id: 'Rank A', color: 'text-fuchsia-400', border: 'border-fuchsia-500/30', hover: 'hover:border-fuchsia-500/60', btn: 'bg-fuchsia-600 hover:bg-fuchsia-500', rxp: 300, rcoin: 150, time: '~ 3 Horas' },
     ];
 
     return (
@@ -221,23 +188,23 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
                 <div className="fixed inset-0 z-[3000] bg-[#020205]/95 backdrop-blur-xl flex flex-col items-center justify-center animate-in fade-in duration-300 w-full">
                     <style>{`@keyframes spin-slow { 100% { transform: rotate(360deg); } }`}</style>
                     <div className="relative w-48 h-48 flex items-center justify-center"><div className="absolute inset-0 bg-gradient-to-tr from-cyan-500 via-emerald-500 to-fuchsia-500 rounded-full blur-[40px] animate-pulse opacity-60"></div><div className="absolute inset-4 border-[2px] border-white/20 border-dashed rounded-full animate-[spin_4s_linear_infinite]"></div><div className="absolute inset-8 border-[3px] border-t-cyan-400 border-b-fuchsia-400 border-l-transparent border-r-transparent rounded-full animate-[spin_1.5s_linear_infinite]"></div><div className="absolute inset-12 bg-black/60 backdrop-blur-md rounded-full shadow-[0_0_30px_rgba(255,255,255,0.2)] flex items-center justify-center"><Zap className="w-10 h-10 text-white drop-shadow-[0_0_15px_#fff] animate-pulse" /></div></div>
-                    <h2 className="mt-12 text-lg md:text-xl font-black text-center text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 via-white to-fuchsia-300 tracking-[0.4em] md:tracking-[0.6em] animate-pulse">FORJANDO...</h2>
+                    <h2 className="mt-12 text-lg md:text-xl font-black text-center text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 via-white to-fuchsia-300 tracking-[0.4em] md:tracking-[0.6em] animate-pulse">ACESSANDO O ABISMO...</h2>
                 </div>
             )}
             {confirmModal && (
                 <div className="fixed inset-0 z-[2000] bg-[#030407]/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300" onClick={() => setConfirmModal(null)}>
                     <div className="bg-[#0d0d12] border border-white/10 p-6 rounded-xl shadow-[0_0_40px_rgba(217,70,239,0.2)] max-w-sm w-full text-center" onClick={e => e.stopPropagation()}>
-                        <ShieldAlert className="w-12 h-12 text-yellow-500 mx-auto mb-4" /><h3 className="text-xl font-black text-white mb-2">Confirmar Contrato?</h3><p className="text-sm text-gray-400/60 mb-6">Ao aceitar uma missão <b>{confirmModal}</b>, você estará sujeito às penalidades caso o tempo esgote ou suas vidas acabem.</p>
+                        <ShieldAlert className="w-12 h-12 text-yellow-500 mx-auto mb-4" /><h3 className="text-xl font-black text-white mb-2">Confirmar Contrato?</h3><p className="text-sm text-gray-400/60 mb-6">Ao aceitar uma missão <b>{confirmModal}</b>, você estará sujeito às penalidades do Abismo caso falhe.</p>
                         <div className="flex gap-3"><button onClick={() => setConfirmModal(null)} className="flex-1 bg-[#050508] border border-white/10 text-gray-300/80 font-bold py-3 rounded-lg hover:text-white transition-colors text-sm duration-300">Recusar</button><button onClick={() => triggerForgeMission(confirmModal)} className="flex-1 bg-gradient-to-r from-cyan-600 to-fuchsia-600 text-white font-black py-3 rounded-lg hover:scale-105 transition-transform shadow-md text-sm duration-300">Assinar</button></div>
                     </div>
                 </div>
             )}
 
             <div className="flex gap-2 border-b border-white/10 mb-6 overflow-x-auto scrollbar-hide pb-2">
-                <button onClick={() => setActiveTab("Missões")} className={`px-4 py-2 rounded-md font-bold transition-all whitespace-nowrap flex items-center gap-2 text-sm duration-300 ${activeTab === "Missões" ? 'bg-fuchsia-500/20 text-fuchsia-400 border border-fuchsia-500/30' : 'text-gray-400/60 hover:text-white border border-transparent'}`}><Target className="w-4 h-4"/> Missões</button>
-                <button onClick={() => setActiveTab("Forja")} className={`px-4 py-2 rounded-md font-bold transition-all whitespace-nowrap flex items-center gap-2 text-sm duration-300 ${activeTab === "Forja" ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'text-gray-400/60 hover:text-white border border-transparent'}`}><Hexagon className="w-4 h-4"/> Forja Cósmica</button>
-                <button onClick={() => setActiveTab("Loja")} className={`px-4 py-2 rounded-md font-bold transition-all whitespace-nowrap flex items-center gap-2 text-sm duration-300 ${activeTab === "Loja" ? 'bg-amber-500/20 text-amber-500 border border-amber-500/30' : 'text-gray-400/60 hover:text-white border border-transparent'}`}><ShoppingCart className="w-4 h-4"/> Loja</button>
-                <button onClick={() => setActiveTab("Ranking")} className={`px-4 py-2 rounded-md font-bold transition-all whitespace-nowrap flex items-center gap-2 text-sm duration-300 ${activeTab === "Ranking" ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30' : 'text-gray-400/60 hover:text-white border border-transparent'}`}><Trophy className="w-4 h-4"/> Ranking</button>
+                <button onClick={() => setActiveTab("Missões")} className={`px-4 py-2 rounded-md font-bold transition-all whitespace-nowrap flex items-center gap-2 text-sm duration-300 ${activeTab === "Missões" ? 'bg-fuchsia-500/20 text-fuchsia-400 border border-fuchsia-500/30' : 'text-gray-400/60 hover:text-white border border-transparent'}`}><Target className="w-4 h-4"/> Contratos</button>
+                <button onClick={() => setActiveTab("Forja")} className={`px-4 py-2 rounded-md font-bold transition-all whitespace-nowrap flex items-center gap-2 text-sm duration-300 ${activeTab === "Forja" ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'text-gray-400/60 hover:text-white border border-transparent'}`}><Hexagon className="w-4 h-4"/> Fornalha do Infinito</button>
+                <button onClick={() => setActiveTab("Loja")} className={`px-4 py-2 rounded-md font-bold transition-all whitespace-nowrap flex items-center gap-2 text-sm duration-300 ${activeTab === "Loja" ? 'bg-amber-500/20 text-amber-500 border border-amber-500/30' : 'text-gray-400/60 hover:text-white border border-transparent'}`}><ShoppingCart className="w-4 h-4"/> Mercado do Vazio</button>
+                <button onClick={() => setActiveTab("Ranking")} className={`px-4 py-2 rounded-md font-bold transition-all whitespace-nowrap flex items-center gap-2 text-sm duration-300 ${activeTab === "Ranking" ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30' : 'text-gray-400/60 hover:text-white border border-transparent'}`}><Trophy className="w-4 h-4"/> Hierarquia</button>
             </div>
 
             {activeTab === "Missões" && (
@@ -254,18 +221,17 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
                             <div className="mb-4">
                                 {userProfileData.activeMission.type === 'search_local' ? (
                                     <div className="bg-[#050508]/60 p-4 md:p-5 rounded-md border border-white/10 relative">
-                                        <div className="flex items-center gap-2 mb-3 text-cyan-400"><Search className="w-5 h-5"/><span className="font-bold text-xs uppercase tracking-widest">Missão de Rastreio</span></div>
+                                        <div className="flex items-center gap-2 mb-3 text-cyan-400"><Compass className="w-5 h-5"/><span className="font-bold text-xs uppercase tracking-widest">Caçada Visual</span></div>
                                         <p className="text-sm font-medium text-gray-200 mb-5 leading-relaxed whitespace-pre-wrap border-l-2 border-cyan-500/50 pl-3">{userProfileData.activeMission.question}</p>
-                                        <div className="bg-cyan-900/20 border border-cyan-500/30 p-3 rounded-md text-xs text-cyan-100 font-bold flex items-center gap-3"><Compass className="w-6 h-6 flex-shrink-0 text-cyan-400"/>Não digite nada! Apenas ache essa obra no catálogo do site e abra a página dela.</div>
                                     </div>
                                 ) : userProfileData.activeMission.type === 'enigma' ? (
                                     <div className="bg-[#050508]/60 p-4 md:p-5 rounded-md border border-white/10 relative">
-                                        <div className="flex items-center gap-2 mb-3 text-cyan-400"><Search className="w-5 h-5"/><span className="font-bold text-xs uppercase tracking-widest">Missão de Rastreio (Global)</span></div>
+                                        <div className="flex items-center gap-2 mb-3 text-fuchsia-400"><Zap className="w-5 h-5"/><span className="font-bold text-xs uppercase tracking-widest">Desafio da IA do Vazio</span></div>
                                         <p className="text-sm font-medium text-gray-200 mb-5 leading-relaxed whitespace-pre-wrap border-l-2 border-fuchsia-500/50 pl-3">{userProfileData.activeMission.question}</p>
                                         <form onSubmit={handleEnigmaSubmit} className="flex flex-col gap-2 relative z-10">
-                                            <div className="relative"><Key className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-cyan-400" /><input type="text" value={enigmaAnswer} onChange={e=>setEnigmaAnswer(e.target.value)} placeholder="Sua resposta..." className="w-full bg-[#050508] border border-white/10 rounded-md pl-9 pr-3 py-2.5 text-white outline-none focus:border-cyan-500 transition-colors duration-300 font-bold text-sm shadow-inner" /></div>
+                                            <div className="relative"><Key className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-cyan-400" /><input type="text" value={enigmaAnswer} onChange={e=>setEnigmaAnswer(e.target.value)} placeholder="Digite o nome da obra..." className="w-full bg-[#050508] border border-white/10 rounded-md pl-9 pr-3 py-2.5 text-white outline-none focus:border-cyan-500 transition-colors duration-300 font-bold text-sm shadow-inner" /></div>
                                             <div className="flex gap-2 mt-1">
-                                                <button type="submit" className="flex-1 bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white font-black px-3 py-3 rounded-md hover:scale-[1.02] transition-transform flex items-center justify-center gap-1.5 text-sm shadow-md duration-300">Validar <Check className="w-4 h-4"/></button>
+                                                <button type="submit" className="flex-1 bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white font-black px-3 py-3 rounded-md hover:scale-[1.02] transition-transform flex items-center justify-center gap-1.5 text-sm shadow-md duration-300">Resolver <Check className="w-4 h-4"/></button>
                                                 <div className="bg-[#050508] px-4 py-3 rounded-md border border-white/10 text-sm font-bold text-gray-400/60 flex items-center justify-center gap-1.5 shadow-inner">Vidas: <span className={userProfileData.activeMission.attemptsLeft === 1 ? 'text-red-500 font-black' : 'text-cyan-400 font-black'}>{userProfileData.activeMission.attemptsLeft}</span></div>
                                             </div>
                                         </form>
@@ -301,7 +267,7 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
                                     <div key={rank.id} className={`bg-[#0d0d12] border ${rank.border} ${rank.hover} transition-colors duration-300 p-4 rounded-xl flex flex-col group shadow-sm`}>
                                         <div className="flex justify-between items-center mb-3"><div className={`${rank.color} font-black text-xl group-hover:scale-105 transition-transform origin-left`}>{rank.id}</div><div className="text-xs font-bold text-gray-400/60 text-right">+{rank.rxp}XP | +{rank.rcoin}M</div></div>
                                         <div className="flex flex-col gap-1 mb-4 mt-2">
-                                            <div className="flex justify-between text-xs text-gray-400/60"><span className="flex items-center gap-1"><Target className="w-4 h-4"/> Tipo Est.</span><span className="font-bold text-gray-300/80">Busca ou Leitura</span></div>
+                                            <div className="flex justify-between text-xs text-gray-400/60"><span className="flex items-center gap-1"><Target className="w-4 h-4"/> Mistérios</span><span className="font-bold text-gray-300/80">Busca, Leitura ou IA</span></div>
                                             <div className="flex justify-between text-xs text-gray-400/60"><span className="flex items-center gap-1"><Clock className="w-4 h-4"/> Tempo Est.</span><span className="font-bold text-gray-300/80">{rank.time}</span></div>
                                         </div>
                                         <button onClick={() => setConfirmModal(rank.id)} className={`w-full ${rank.btn} text-white text-sm font-bold py-3 rounded-md transition-colors mt-auto flex items-center justify-center gap-2 duration-300`}>Assinar Contrato</button>
@@ -314,8 +280,8 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
                             </div>
                             <div className="bg-red-950/20 border border-red-900/80 hover:border-red-500/80 transition-colors duration-300 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-1 relative overflow-hidden shadow-sm">
                                 <div className="absolute top-0 right-0 w-24 h-24 bg-red-600/10 blur-[30px] rounded-full pointer-events-none"></div>
-                                <div className="relative z-10"><div className="text-red-500 font-black text-2xl flex items-center gap-1.5 mb-1">Rank SSS <Skull className="w-5 h-5"/></div><div className="text-xs font-bold text-gray-400/60 flex gap-2"><span className="text-red-400">+2000XP / +1000M</span> <span>• Extremo</span></div></div>
-                                <button onClick={() => setConfirmModal('Rank SSS')} className="w-full sm:w-auto bg-red-800 hover:bg-red-600 text-white text-sm font-black px-8 py-3 rounded-md transition-colors duration-300 shadow-lg relative z-10 flex items-center justify-center min-w-[120px]">Desafiar Sistema</button>
+                                <div className="relative z-10"><div className="text-red-500 font-black text-2xl flex items-center gap-1.5 mb-1">Rank SSS <Skull className="w-5 h-5"/></div><div className="text-xs font-bold text-gray-400/60 flex gap-2"><span className="text-red-400">+2000XP / +1000M</span> <span>• Risco do Abismo</span></div></div>
+                                <button onClick={() => setConfirmModal('Rank SSS')} className="w-full sm:w-auto bg-red-800 hover:bg-red-600 text-white text-sm font-black px-8 py-3 rounded-md transition-colors duration-300 shadow-lg relative z-10 flex items-center justify-center min-w-[120px]">Mergulhar no Abismo</button>
                             </div>
                         </div>
                     )}
@@ -326,7 +292,7 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
                 <div className="animate-in fade-in duration-300">
                     <div className="bg-gradient-to-br from-[#0d0d12] to-[#030407] border border-white/10 p-5 md:p-6 rounded-xl shadow-md">
                        <div className="flex flex-col md:flex-row justify-between items-center gap-5 mb-6 relative z-10">
-                         <div className="text-center md:text-left"><h3 className="text-2xl font-black text-emerald-400 mb-1.5 flex items-center gap-2 justify-center md:justify-start"><Hexagon className="w-6 h-6"/> Fornalha de Síntese</h3><p className="text-gray-400/60 text-sm font-medium max-w-sm">Leitura e Missões geram Cristais. Sintetize-os aqui para obter Moedas Infinity e XP extra.</p></div>
+                         <div className="text-center md:text-left"><h3 className="text-2xl font-black text-emerald-400 mb-1.5 flex items-center gap-2 justify-center md:justify-start"><Hexagon className="w-6 h-6"/> Fornalha do Infinito</h3><p className="text-gray-400/60 text-sm font-medium max-w-sm">Leitura e Missões geram Cristais. Sintetize-os aqui para obter Moedas Infinity e XP extra.</p></div>
                          <div className="flex gap-2">
                             <div className="bg-[#050508] border border-white/10 p-4 rounded-lg text-center min-w-[80px] shadow-inner"><p className="text-xl font-black text-cyan-400">{userProfileData.crystals || 0}</p><p className="text-xs text-gray-400/60 uppercase font-bold mt-0.5">Cristais</p></div>
                             <div className="bg-[#050508] border border-white/10 p-4 rounded-lg text-center min-w-[80px] shadow-inner"><p className="text-xl font-black text-amber-500">{userProfileData.coins || 0}</p><p className="text-xs text-gray-400/60 uppercase font-bold mt-0.5">Moedas</p></div>
@@ -345,7 +311,7 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
                 <div className="animate-in fade-in duration-300">
                     <div className="bg-[#0d0d12] border border-white/10 p-5 rounded-xl shadow-md">
                       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-5">
-                        <div><h3 className="text-2xl font-black text-amber-500 mb-0.5 flex items-center gap-1.5"><ShoppingCart className="w-6 h-6"/> Loja Infinity</h3><p className="text-gray-400/60 text-xs">Utilize suas moedas para personalizar seu Perfil.</p></div>
+                        <div><h3 className="text-2xl font-black text-amber-500 mb-0.5 flex items-center gap-1.5"><ShoppingCart className="w-6 h-6"/> Mercado do Vazio</h3><p className="text-gray-400/60 text-xs">Utilize suas moedas para forjar sua identidade.</p></div>
                         <div className="bg-amber-500/20 border border-amber-500/50 text-amber-500 font-black px-4 py-2 rounded-md flex items-center gap-1 w-full sm:w-auto justify-center text-sm">{userProfileData.coins || 0} M</div>
                       </div>
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -372,7 +338,6 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
                 </div>
             )}
 
-            {/* ABA: RANKING GLOBAL */}
             {activeTab === "Ranking" && (
                 <div className="animate-in fade-in duration-500">
                     <div className="bg-gradient-to-b from-[#0d0d12] to-[#050508] border border-white/10 p-5 rounded-xl shadow-2xl relative overflow-hidden">
@@ -380,9 +345,8 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
                         <div className="absolute bottom-0 left-0 w-64 h-64 bg-fuchsia-600/10 blur-[80px] rounded-full pointer-events-none"></div>
                         
                         <div className="text-center mb-8 relative z-10">
-                            <h3 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-fuchsia-400 tracking-widest uppercase mb-2 drop-shadow-md">Top Leitores</h3>
-                            {/* Alterado texto do Monarcas */}
-                            <p className="text-gray-400/80 text-xs font-bold">A Elite do Multiverso. Classificação por Nível e XP.</p>
+                            <h3 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-fuchsia-400 tracking-widest uppercase mb-2 drop-shadow-md">A Hierarquia</h3>
+                            <p className="text-gray-400/80 text-xs font-bold">As Entidades que dominam o Vazio.</p>
                         </div>
 
                         {loadingRank ? (
@@ -390,7 +354,7 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
                         ) : rankingList.length === 0 ? (
                             <div className="py-10 text-center border border-dashed border-white/10 rounded-xl bg-[#050508]/50">
                                 <ShieldAlert className="w-10 h-10 text-yellow-500 mx-auto mb-2" />
-                                <p className="text-gray-400/80 font-bold text-sm">O Ranking está sendo calibrado no Banco de Dados.</p>
+                                <p className="text-gray-400/80 font-bold text-sm">O Vazio ainda não foi preenchido.</p>
                             </div>
                         ) : (
                             <div className="relative z-10">
@@ -404,7 +368,7 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
                                                 <img src={rankingList[1].avatarUrl || `https://placehold.co/100x100/0d0d12/a1a1aa?text=2`} className="w-full h-full object-cover" />
                                             </div>
                                             <div className="h-16 sm:h-24 w-16 sm:w-20 bg-gradient-to-t from-[#050508] to-gray-800/20 mt-3 rounded-t-lg border-t-2 border-gray-400 flex flex-col items-center justify-start pt-2">
-                                                <span className="text-gray-200 font-bold text-xs truncate w-full text-center px-1">{rankingList[1].name || 'Leitor'}</span>
+                                                <span className="text-gray-200 font-bold text-xs truncate w-full text-center px-1">{rankingList[1].name || 'Viajante'}</span>
                                                 <span className="text-[9px] text-gray-400 font-black mt-1">Lvl {rankingList[1].level || 1}</span>
                                             </div>
                                         </div>
@@ -417,8 +381,7 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
                                                 <img src={rankingList[0].avatarUrl || `https://placehold.co/100x100/0d0d12/facc15?text=1`} className="w-full h-full object-cover" />
                                             </div>
                                             <div className="h-24 sm:h-32 w-20 sm:w-24 bg-gradient-to-t from-[#050508] to-yellow-900/30 mt-3 rounded-t-lg border-t-2 border-yellow-400 flex flex-col items-center justify-start pt-3 shadow-[0_-5px_20px_rgba(250,204,21,0.1)]">
-                                                {/* Alterado texto do Monarca */}
-                                                <span className="text-yellow-400 font-black text-sm truncate w-full text-center px-1">{rankingList[0].name || 'Mestre'}</span>
+                                                <span className="text-yellow-400 font-black text-sm truncate w-full text-center px-1">{rankingList[0].name || 'Entidade Absoluta'}</span>
                                                 <span className="text-[10px] text-yellow-500/80 font-black mt-1">Lvl {rankingList[0].level || 1}</span>
                                             </div>
                                         </div>
@@ -431,7 +394,7 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
                                                 <img src={rankingList[2].avatarUrl || `https://placehold.co/100x100/0d0d12/b45309?text=3`} className="w-full h-full object-cover" />
                                             </div>
                                             <div className="h-12 sm:h-16 w-14 sm:w-16 bg-gradient-to-t from-[#050508] to-amber-900/20 mt-3 rounded-t-lg border-t-2 border-amber-700 flex flex-col items-center justify-start pt-2">
-                                                <span className="text-amber-500 font-bold text-[10px] truncate w-full text-center px-1">{rankingList[2].name || 'Leitor'}</span>
+                                                <span className="text-amber-500 font-bold text-[10px] truncate w-full text-center px-1">{rankingList[2].name || 'Viajante'}</span>
                                                 <span className="text-[8px] text-amber-600 font-black mt-1">Lvl {rankingList[2].level || 1}</span>
                                             </div>
                                         </div>
@@ -447,7 +410,7 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
                                                 <img src={p.avatarUrl || `https://placehold.co/50x50/0d0d12/22d3ee?text=${index+4}`} className="w-full h-full object-cover" />
                                             </div>
                                             <div className="flex-1 min-w-0">
-                                                <h4 className="font-bold text-white text-sm truncate group-hover:text-cyan-400 transition-colors">{p.name || 'Leitor'}</h4>
+                                                <h4 className="font-bold text-white text-sm truncate group-hover:text-cyan-400 transition-colors">{p.name || 'Explorador'}</h4>
                                                 <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">{getLevelTitle(p.level || 1)}</p>
                                             </div>
                                             <div className="text-right">
@@ -457,7 +420,7 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
                                         </div>
                                     ))}
                                     {rankingList.length <= 3 && (
-                                        <p className="text-center text-xs text-gray-400/50 py-4 font-bold">Sem mais leitores no Rank.</p>
+                                        <p className="text-center text-xs text-gray-400/50 py-4 font-bold">Sem mais viajantes registrados.</p>
                                     )}
                                 </div>
                             </div>
