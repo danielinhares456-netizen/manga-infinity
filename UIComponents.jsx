@@ -37,8 +37,6 @@ export function Footer() {
         <footer className="w-full bg-[#020205] border-t border-blue-900/20 py-12 mt-auto pb-24 md:pb-12 relative overflow-hidden flex flex-col items-center justify-center">
             <div className="absolute bottom-[-20%] left-1/2 -translate-x-1/2 w-64 h-64 bg-blue-900/10 rounded-full blur-[100px] pointer-events-none"></div>
             <div className="max-w-7xl mx-auto px-4 text-center relative z-10 flex flex-col items-center justify-center w-full">
-                
-                {/* NEW DIGNIFIED BOOK ICON LOGO */}
                 <div className="flex justify-center items-center gap-3 mb-5 relative">
                     <div className="relative flex items-center justify-center w-10 h-10">
                        <Hexagon className="absolute inset-[-10%] w-[120%] h-[120%] text-blue-600/50 animate-[spin_12s_linear_infinite]" strokeWidth={1} />
@@ -47,8 +45,7 @@ export function Footer() {
                     </div>
                     <span className="font-black text-xl text-transparent bg-clip-text bg-gradient-to-r from-blue-100 via-white to-amber-500 tracking-[0.2em] uppercase">MANGÁS ABISSAL</span>
                 </div>
-
-                <p className="text-gray-500 text-[9px] uppercase font-black tracking-[0.2em] mb-4 text-center">Abyssal Mangas - © 2026. O Vazio Resguarda.</p>
+                <p className="text-gray-500 text-[9px] uppercase font-black tracking-[0.2em] mb-4 text-center">Mangás Abissal - © 2026. O Vazio Resguarda.</p>
                 <div className="flex items-center justify-center gap-1.5 opacity-40 mx-auto">
                     <Lock className="w-3 h-3 text-amber-500" />
                     <span className="text-[8px] text-amber-600 uppercase tracking-widest font-black">Blindado no Vazio SSL</span>
@@ -63,24 +60,19 @@ export function SplashScreen() {
     <div className="fixed inset-0 z-[600] bg-[#020205] flex flex-col items-center justify-center overflow-hidden font-sans">
       <style>{`
         @keyframes vortex-open { 0% { transform: scale(0.8); opacity: 0; filter: blur(20px); } 50% { transform: scale(1.05); opacity: 1; filter: blur(0px); } 100% { transform: scale(1); opacity: 1; } }
-        @keyframes pulse-ring { 0% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.15); } 70% { box-shadow: 0 0 0 40px rgba(37, 99, 235, 0); } 100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); } }
+        @keyframes pulse-ring { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.15); } 70% { box-shadow: 0 0 0 40px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
       `}</style>
-      
       <div className="absolute w-[60rem] h-[60rem] bg-gradient-to-tr from-blue-900/10 via-[#020205] to-red-900/5 rounded-full blur-[120px] animate-[spin_25s_linear_infinite]"></div>
-
       <div className="relative z-20 flex flex-col items-center animate-[vortex-open_1.5s_cubic-bezier(0.2,0.8,0.2,1)_forwards] w-full max-w-sm mx-auto text-center">
-        
-        {/* NEW GIANT DIGNIFIED BOOK ICON */}
         <div className="mb-10 relative flex items-center justify-center w-36 h-36 rounded-full animate-[pulse-ring_4s_infinite]">
            <div className="absolute inset-0 bg-gradient-to-tr from-blue-600 to-red-600 rounded-full blur-2xl opacity-30 animate-pulse"></div>
            <Hexagon className="absolute inset-[-20%] w-[140%] h-[140%] text-blue-500/40 animate-[spin_10s_linear_infinite]" strokeWidth={0.8} />
            <Hexagon className="absolute inset-0 w-full h-full text-red-500/40 animate-[spin_7s_linear_infinite_reverse]" strokeWidth={0.8} />
            <BookOpen className="w-20 h-20 text-amber-500 drop-shadow-[0_0_20px_rgba(245,158,11,1)] relative z-10" />
-           <Eye className="w-8 h-8 text-red-500 absolute z-20 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 drop-shadow-[0_0_10px_rgba(239,68,68,0.8)]" />
+           <Eye className="w-8 h-8 text-red-600 absolute z-20 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 drop-shadow-[0_0_15px_rgba(239,68,68,0.9)] animate-pulse" />
         </div>
-        
         <h1 className="text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white via-blue-100 to-blue-700 tracking-[0.3em] ml-[0.3em] text-center leading-tight uppercase">MANGÁS<br/>ABISSAL</h1>
-        <div className="mt-12 text-amber-500 text-[9px] md:text-[10px] font-black tracking-[0.5em] uppercase animate-pulse bg-[#050508]/80 px-6 py-2.5 rounded-full border border-amber-900/30 backdrop-blur-md shadow-[0_0_15px_rgba(245,158,11,0.15)] text-center mx-auto">CONECTANDO AO VAZio...</div>
+        <div className="mt-12 text-amber-500 text-[9px] md:text-[10px] font-black tracking-[0.5em] uppercase animate-pulse bg-[#050508]/80 px-6 py-2.5 rounded-full border border-amber-900/30 backdrop-blur-md shadow-[0_0_15px_rgba(245,158,11,0.15)] text-center mx-auto">CONECTANDO AO VAZIO...</div>
       </div>
     </div>
   );
