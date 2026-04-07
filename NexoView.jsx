@@ -32,7 +32,7 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
             rankData.sort((a, b) => (b.level || 1) - (a.level || 1) || (b.xp || 0) - (a.xp || 0));
             setRankingList(rankData.slice(0, 50));
         } catch (e) {
-            showToast("Erro ao ler os registros do Abismo.", "error");
+            showToast("Erro ao ler os registros do Abismo. Verifique regras do Firebase.", "error");
         } finally {
             setLoadingRank(false);
         }
@@ -76,12 +76,13 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
             };
             const conf = rankConfigs[difficulty];
 
-            let validLocalMangas = mangas.filter(item => !completed.includes("enigma_local_" + item.id) && item.synopsis && item.synopsis.length > 50);
+            // Pega obras do seu BD que tenham no mínimo ALGUMA sinopse (ao invés de exigir textão)
+            let validLocalMangas = mangas.filter(item => !completed.includes("enigma_local_" + item.id) && item.synopsis && item.synopsis.length > 10);
             
             if(validLocalMangas.length > 0) { 
                 const randomManga = validLocalMangas[Math.floor(Math.random() * validLocalMangas.length)];
                 
-                // 50% de chance para Caçada Visual, 50% de chance para IA do Abismo (Perguntas)
+                // Exato: 50% Busca (Procurar site), 50% Oráculo (Digitar resposta)
                 const isHunt = Math.random() < 0.5;
 
                 if (isHunt) {
@@ -92,18 +93,19 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
                     
                     newMission = { id: Date.now().toString(), type: 'search_local', difficulty, title: "Busca no Vazio", question: q, targetManga: randomManga.id, targetTitle: randomManga.title, rewardXp: conf.rxp, rewardCoins: conf.rcoin, penaltyXp: conf.pxp, penaltyCoins: conf.pcoin, deadline: now + (conf.time * 60 * 1000) };
                 } else {
-                    let q = `[ORÁCULO DA IA CÓSMICA]\n\nAnalisando registros do Vazio...\n`;
+                    // O Oráculo não usa a sinopse, ele usa os dados técnicos para você adivinhar e digitar
+                    let q = `[ORÁCULO DO VAZIO]\n\nAnalisando registros da Biblioteca...\n`;
                     if (randomManga.author) q += `• Autoria rastreada: ${randomManga.author}\n`;
-                    if (randomManga.genres && randomManga.genres.length > 0) q += `• Frequência de Gêneros: ${randomManga.genres.slice(0,3).join(', ')}\n`;
-                    if (randomManga.chapters) q += `• Fragmentos (Capítulos): ${randomManga.chapters.length}\n`;
+                    if (randomManga.genres && randomManga.genres.length > 0) q += `• Gêneros identificados: ${randomManga.genres.slice(0,3).join(', ')}\n`;
+                    if (randomManga.chapters) q += `• Capítulos registrados: ${randomManga.chapters.length}\n`;
                     q += `\nQual é o nome exato desta obra gravada no Infinito?`;
 
-                    newMission = { id: Date.now().toString(), type: 'enigma', difficulty, title: "Enigma da IA", question: q, answer: [randomManga.title.toLowerCase().trim()], attemptsLeft: conf.enigmaTries, rewardXp: conf.rxp, rewardCoins: conf.rcoin, penaltyXp: conf.pxp, penaltyCoins: conf.pcoin, deadline: now + (conf.time * 60 * 1000) };
+                    newMission = { id: Date.now().toString(), type: 'enigma', difficulty, title: "Enigma da Entidade", question: q, answer: [randomManga.title.toLowerCase().trim()], attemptsLeft: conf.enigmaTries, rewardXp: conf.rxp, rewardCoins: conf.rcoin, penaltyXp: conf.pxp, penaltyCoins: conf.pcoin, deadline: now + (conf.time * 60 * 1000) };
                 }
                 completed.push("enigma_local_" + randomManga.id);
             } 
             
-            // Se o BD Local estiver vazio ou lido, manda Missão de Leitura
+            // Fallback: Se o seu BD estiver sem sinopses, joga a leitura normal
             if (!newMission && mangas.length > 0) {
                  const randomManga = mangas[Math.floor(Math.random() * mangas.length)];
                  let readTarget = difficulty === 'Rank E' ? 1 : difficulty === 'Rank C' ? 2 : difficulty === 'Rank B' ? 3 : difficulty === 'Rank A' ? 5 : difficulty === 'Rank S' ? 10 : 20;
@@ -225,12 +227,12 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
                                     </div>
                                 ) : userProfileData.activeMission.type === 'enigma' ? (
                                     <div className="bg-[#050508]/60 p-4 md:p-5 rounded-md border border-white/10 relative">
-                                        <div className="flex items-center gap-2 mb-3 text-fuchsia-400"><Zap className="w-5 h-5"/><span className="font-bold text-xs uppercase tracking-widest">Desafio da IA do Vazio</span></div>
+                                        <div className="flex items-center gap-2 mb-3 text-fuchsia-400"><Zap className="w-5 h-5"/><span className="font-bold text-xs uppercase tracking-widest">Oráculo do Vazio</span></div>
                                         <p className="text-sm font-medium text-gray-200 mb-5 leading-relaxed whitespace-pre-wrap border-l-2 border-fuchsia-500/50 pl-3">{userProfileData.activeMission.question}</p>
                                         <form onSubmit={handleEnigmaSubmit} className="flex flex-col gap-2 relative z-10">
                                             <div className="relative"><Key className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-cyan-400" /><input type="text" value={enigmaAnswer} onChange={e=>setEnigmaAnswer(e.target.value)} placeholder="Digite o nome da obra..." className="w-full bg-[#050508] border border-white/10 rounded-md pl-9 pr-3 py-2.5 text-white outline-none focus:border-cyan-500 transition-colors duration-300 font-bold text-sm shadow-inner" /></div>
                                             <div className="flex gap-2 mt-1">
-                                                <button type="submit" className="flex-1 bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white font-black px-3 py-3 rounded-md hover:scale-[1.02] transition-transform flex items-center justify-center gap-1.5 text-sm shadow-md duration-300">Resolver <Check className="w-4 h-4"/></button>
+                                                <button type="submit" className="flex-1 bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white font-black px-3 py-3 rounded-md hover:scale-[1.02] transition-transform flex items-center justify-center gap-1.5 text-sm shadow-md duration-300">Decifrar <Check className="w-4 h-4"/></button>
                                                 <div className="bg-[#050508] px-4 py-3 rounded-md border border-white/10 text-sm font-bold text-gray-400/60 flex items-center justify-center gap-1.5 shadow-inner">Vidas: <span className={userProfileData.activeMission.attemptsLeft === 1 ? 'text-red-500 font-black' : 'text-cyan-400 font-black'}>{userProfileData.activeMission.attemptsLeft}</span></div>
                                             </div>
                                         </form>
@@ -266,7 +268,7 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
                                     <div key={rank.id} className={`bg-[#0d0d12] border ${rank.border} ${rank.hover} transition-colors duration-300 p-4 rounded-xl flex flex-col group shadow-sm`}>
                                         <div className="flex justify-between items-center mb-3"><div className={`${rank.color} font-black text-xl group-hover:scale-105 transition-transform origin-left`}>{rank.id}</div><div className="text-xs font-bold text-gray-400/60 text-right">+{rank.rxp}XP | +{rank.rcoin}M</div></div>
                                         <div className="flex flex-col gap-1 mb-4 mt-2">
-                                            <div className="flex justify-between text-xs text-gray-400/60"><span className="flex items-center gap-1"><Target className="w-4 h-4"/> Mistérios</span><span className="font-bold text-gray-300/80">Busca, Leitura ou IA</span></div>
+                                            <div className="flex justify-between text-xs text-gray-400/60"><span className="flex items-center gap-1"><Target className="w-4 h-4"/> Mistérios</span><span className="font-bold text-gray-300/80">Busca, Leitura ou Oráculo</span></div>
                                             <div className="flex justify-between text-xs text-gray-400/60"><span className="flex items-center gap-1"><Clock className="w-4 h-4"/> Tempo Est.</span><span className="font-bold text-gray-300/80">{rank.time}</span></div>
                                         </div>
                                         <button onClick={() => setConfirmModal(rank.id)} className={`w-full ${rank.btn} text-white text-sm font-bold py-3 rounded-md transition-colors mt-auto flex items-center justify-center gap-2 duration-300`}>Assinar Contrato</button>
@@ -337,6 +339,7 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
                 </div>
             )}
 
+            {/* ABA: RANKING GLOBAL (SEM PRECISAR DE INDICE NO FIREBASE) */}
             {activeTab === "Ranking" && (
                 <div className="animate-in fade-in duration-500">
                     <div className="bg-gradient-to-b from-[#0d0d12] to-[#050508] border border-white/10 p-5 rounded-xl shadow-2xl relative overflow-hidden">
@@ -357,7 +360,9 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
                             </div>
                         ) : (
                             <div className="relative z-10">
+                                {/* PÓDIO (TOP 3) */}
                                 <div className="flex justify-center items-end gap-2 sm:gap-6 mb-12 mt-4 px-2">
+                                    {/* 2º Lugar */}
                                     {rankingList[1] && (
                                         <div className="flex flex-col items-center animate-in slide-in-from-bottom-10 duration-700 delay-100">
                                             <div className="text-[10px] text-gray-300 font-black mb-2 uppercase tracking-widest bg-gray-600/20 px-2 py-0.5 rounded border border-gray-500/50">Prata</div>
@@ -370,6 +375,7 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
                                             </div>
                                         </div>
                                     )}
+                                    {/* 1º Lugar */}
                                     {rankingList[0] && (
                                         <div className="flex flex-col items-center animate-in slide-in-from-bottom-16 duration-700 z-10">
                                             <Crown className="w-8 h-8 text-yellow-400 mb-1 drop-shadow-[0_0_15px_rgba(250,204,21,0.8)] animate-[float-inf_3s_ease-in-out_infinite]"/>
@@ -382,6 +388,7 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
                                             </div>
                                         </div>
                                     )}
+                                    {/* 3º Lugar */}
                                     {rankingList[2] && (
                                         <div className="flex flex-col items-center animate-in slide-in-from-bottom-8 duration-700 delay-200">
                                             <div className="text-[10px] text-amber-600 font-black mb-2 uppercase tracking-widest bg-amber-900/20 px-2 py-0.5 rounded border border-amber-700/50">Bronze</div>
@@ -396,6 +403,7 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
                                     )}
                                 </div>
 
+                                {/* LISTA DO RESTO DOS JOGADORES */}
                                 <div className="space-y-2 mt-4 bg-[#050508]/50 p-3 sm:p-5 rounded-xl border border-white/5">
                                     {rankingList.slice(3).map((p, index) => (
                                         <div key={p.id} className="flex items-center gap-3 sm:gap-4 p-3 bg-[#0d0d12] hover:bg-white/5 border border-white/5 hover:border-cyan-500/30 rounded-lg transition-colors duration-300 group">
