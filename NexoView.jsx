@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Target, Hexagon, ShoppingCart, Trophy, Check, Compass, Timer, Star, Skull, Zap, Clock, Crown, Key, Loader2 } from 'lucide-react';
+import { Target, Hexagon, ShoppingCart, Trophy, Check, Compass, Timer, Star, Skull, Zap, Clock, Crown, Key, Loader2, ShieldAlert, Sparkles } from 'lucide-react';
 import { doc, updateDoc, collectionGroup, getDocs } from "firebase/firestore";
 import { db } from './firebase';
 import { addXpLogic, removeXpLogic, getLevelTitle, getRarityColor } from './helpers';
@@ -77,7 +77,6 @@ export function NexoView({ user, userProfileData, showToast, mangas, onNavigate,
             let newMission = null;
             const conf = rankConfigs[difficulty];
 
-            // 100% Aleatório entre os 3 tipos
             const missionPool = ['read', 'search_visual', 'enigma'];
             const chosenType = missionPool[Math.floor(Math.random() * missionPool.length)];
 
@@ -89,7 +88,6 @@ export function NexoView({ user, userProfileData, showToast, mangas, onNavigate,
                     let genres = randomManga.genres ? randomManga.genres.join(', ') : 'Desconhecidos';
                     let q = `[ECO DO VAZIO]\n\nGêneros: ${genres}\n\nFragmento:\n"${cleanDesc.substring(0, conf.charLimit)}..."\n\nRastreie esta obra no catálogo e acesse a página dela para concluir o contrato.`;
                     
-                    // IMPORTANTE: O type foi alterado de search_visual para search_local aqui para garantir compatibilidade com a verificação
                     newMission = { id: Date.now().toString(), type: 'search_local', difficulty, title: "Caçada Abissal", question: q, targetManga: randomManga.id, rewardXp: conf.rxp, rewardCoins: conf.rcoin, penaltyXp: conf.pxp, penaltyCoins: conf.pcoin, deadline: now + (conf.time * 60 * 1000) };
                 
                 } else if (chosenType === 'enigma') {
@@ -165,8 +163,8 @@ export function NexoView({ user, userProfileData, showToast, mangas, onNavigate,
     const RANK_CARDS = [
         { id: 'Rank E', color: 'text-gray-400', border: 'border-gray-500/20', hover: 'hover:border-gray-500/50', btn: 'bg-gray-700 hover:bg-gray-600' },
         { id: 'Rank C', color: 'text-emerald-500', border: 'border-emerald-500/20', hover: 'hover:border-emerald-500/50', btn: 'bg-emerald-700 hover:bg-emerald-600' },
-        { id: 'Rank B', color: 'text-amber-500', border: 'border-amber-500/20', hover: 'hover:border-amber-500/50', btn: 'bg-amber-700 hover:bg-amber-600' },
-        { id: 'Rank A', color: 'text-red-500', border: 'border-red-500/20', hover: 'hover:border-red-500/50', btn: 'bg-red-700 hover:bg-red-600' },
+        { id: 'Rank B', color: 'text-[#6d28d9]', border: 'border-[#6d28d9]/20', hover: 'hover:border-[#6d28d9]/50', btn: 'bg-[#6d28d9] hover:bg-purple-500' },
+        { id: 'Rank A', color: 'text-fuchsia-400', border: 'border-fuchsia-500/20', hover: 'hover:border-fuchsia-500/50', btn: 'bg-fuchsia-600 hover:bg-fuchsia-500' },
     ];
 
     return (
@@ -375,7 +373,7 @@ export function NexoView({ user, userProfileData, showToast, mangas, onNavigate,
                                             <div className={`w-24 h-24 sm:w-32 sm:h-32 rounded-full border-[6px] border-yellow-400 bg-black shadow-[0_0_40px_rgba(250,204,21,0.5)] overflow-hidden relative transition-transform duration-500 group-hover:scale-110 ${rankingList[0].activeFrame || ''}`}>
                                                 <img src={rankingList[0].avatarUrl || `https://placehold.co/100x100/0d0d12/facc15?text=1`} className="w-full h-full object-cover" />
                                             </div>
-                                            <div className="h-28 sm:h-36 w-24 sm:w-32 bg-gradient-to-t from-black to-yellow-900/30 mt-4 rounded-t-2xl border-t-[4px] border-yellow-400 flex flex-col items-center justify-start pt-5 shadow-[0_-8px_25px_rgba(250,204,21,0.15)]">
+                                            <div className="h-28 sm:h-36 w-24 sm:w-32 bg-gradient-to-t from-black to-yellow-900/20 mt-4 rounded-t-2xl border-t-[4px] border-yellow-400 flex flex-col items-center justify-start pt-5 shadow-[0_-8px_25px_rgba(250,204,21,0.15)]">
                                                 <span className="text-yellow-400 font-black text-sm truncate w-full text-center px-2">{rankingList[0].name || 'Entidade Suprema'}</span>
                                                 <span className="text-[11px] text-yellow-500 font-black mt-2 uppercase tracking-wider">Lvl {rankingList[0].level || 1}</span>
                                             </div>
@@ -387,7 +385,7 @@ export function NexoView({ user, userProfileData, showToast, mangas, onNavigate,
                                             <div className={`w-16 h-16 sm:w-20 sm:h-20 rounded-full border-[5px] border-amber-700 bg-black shadow-[0_0_25px_rgba(180,83,9,0.3)] overflow-hidden transition-transform duration-500 group-hover:scale-110 ${rankingList[2].activeFrame || ''}`}>
                                                 <img src={rankingList[2].avatarUrl || `https://placehold.co/100x100/0d0d12/b45309?text=3`} className="w-full h-full object-cover" />
                                             </div>
-                                            <div className="h-16 sm:h-24 w-16 sm:w-20 bg-gradient-to-t from-black to-amber-900/20 mt-4 rounded-t-2xl border-t-[3px] border-amber-700 flex flex-col items-center justify-start pt-3 shadow-[0_-5px_15px_rgba(0,0,0,0.2)]">
+                                            <div className="h-16 sm:h-24 w-16 sm:w-20 bg-gradient-to-t from-black to-amber-900/10 mt-4 rounded-t-2xl border-t-[3px] border-amber-700 flex flex-col items-center justify-start pt-3 shadow-[0_-5px_15px_rgba(0,0,0,0.2)]">
                                                 <span className="text-amber-500 font-bold text-[11px] truncate w-full text-center px-2">{rankingList[2].name || 'Viajante'}</span>
                                                 <span className="text-[9px] text-red-500 font-black mt-1 uppercase">Lvl {rankingList[2].level || 1}</span>
                                             </div>
