@@ -37,20 +37,43 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
 
     const fetchGlobalEnigma = async (difficulty) => {
         try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 4000);
-            const res = await fetch(`https://api.jikan.moe/v4/random/${Math.random() > 0.5 ? 'manga' : 'anime'}`, { signal: controller.signal });
-            clearTimeout(timeoutId);
+            // AJUSTE: Filtra apenas TOP OBRAS (Evita obras obscuras com sinopses ruins)
+            const type = Math.random() > 0.5 ? 'manga' : 'anime';
+            // Pega uma página aleatória entre as primeiras do Top (limit=25)
+            const randomPage = Math.floor(Math.random() * 4) + 1; 
+            const res = await fetch(`https://api.jikan.moe/v4/top/${type}?limit=25&page=${randomPage}`);
+            
             const data = await res.json();
-            const itemApi = data.data;
+            const topList = data.data;
+            if(!topList || topList.length === 0) return null;
+
+            // Seleciona uma obra aleatória da lista do Top
+            const itemApi = topList[Math.floor(Math.random() * topList.length)];
+
             if(!itemApi || !itemApi.title || !itemApi.synopsis) return null;
-            let snippetLength = difficulty.includes('S') ? 80 : (difficulty.includes('A') || difficulty.includes('B') ? 150 : 300);
-            let shortSynopsis = itemApi.synopsis.split('[')[0].trim().substring(0, snippetLength) + "...";
+            
+            let cleanSynopsis = itemApi.synopsis.split('[')[0].trim(); // Remove avisos da API no fim
+            
+            let snippetLength = difficulty.includes('S') ? 100 : (difficulty.includes('A') || difficulty.includes('B') ? 200 : 400);
+            let shortSynopsis = cleanSynopsis.substring(0, snippetLength) + "...";
+            
             let translatedSynopsis = await translateToPtBr(shortSynopsis);
-            let translatedGenres = await translateToPtBr(itemApi.genres && itemApi.genres.length > 0 ? itemApi.genres.map(g => g.name).slice(0, difficulty.includes('S') ? 1 : 3).join(', ') : "Desconhecidos");
+            
+            let genres = itemApi.genres && itemApi.genres.length > 0 ? itemApi.genres.map(g => g.name).slice(0, 3).join(', ') : "Desconhecidos";
+            let translatedGenres = await translateToPtBr(genres);
+            
+            // Coleta todas as variações de título possíveis para a resposta
+            const acceptedAnswers = new Set();
+            if(itemApi.title) acceptedAnswers.add(itemApi.title.toLowerCase().trim());
+            if(itemApi.title_english) acceptedAnswers.add(itemApi.title_english.toLowerCase().trim());
+            if(itemApi.title_japanese) acceptedAnswers.add(itemApi.title_japanese.toLowerCase().trim());
+            if(itemApi.titles) {
+                itemApi.titles.forEach(t => acceptedAnswers.add(t.title.toLowerCase().trim()));
+            }
+
             return { 
-                q: `[SINAL GLOBAL INTERCEPTADO]\n\nSinopse Parcial:\n"${translatedSynopsis}"\n\nGêneros: ${translatedGenres}\n\nQual é o nome original ou em inglês da obra?`, 
-                a: [itemApi.title.toLowerCase().trim(), ...(itemApi.title_english ? [itemApi.title_english.toLowerCase().trim()] : []), ...(itemApi.title_japanese ? [itemApi.title_japanese.toLowerCase().trim()] : [])], 
+                q: `[SINAL MULTIVERSAL INTERCEPTADO - ${type.toUpperCase()}]\n\nSinopse Parcial:\n"${translatedSynopsis}"\n\nGêneros: ${translatedGenres}\n\nQual é o nome da obra?`, 
+                a: Array.from(acceptedAnswers), 
                 rawId: itemApi.mal_id 
             };
         } catch(e) { return null; }
@@ -262,7 +285,6 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
                                     <div key={rank.id} className={`bg-[#0d0d12] border ${rank.border} ${rank.hover} transition-colors duration-300 p-4 rounded-xl flex flex-col group shadow-sm`}>
                                         <div className="flex justify-between items-center mb-3"><div className={`${rank.color} font-black text-xl group-hover:scale-105 transition-transform origin-left`}>{rank.id}</div><div className="text-xs font-bold text-gray-400/60 text-right">+{rank.rxp}XP | +{rank.rcoin}M</div></div>
                                         <div className="flex flex-col gap-1 mb-4 mt-2">
-                                            <div className="flex justify-between text-xs text-gray-400/60"><span className="flex items-center gap-1"><Target className="w-4 h-4"/> Sucesso Est.</span><span className="font-bold text-gray-300/80">{rank.success}</span></div>
                                             <div className="flex justify-between text-xs text-gray-400/60"><span className="flex items-center gap-1"><Clock className="w-4 h-4"/> Tempo Est.</span><span className="font-bold text-gray-300/80">{rank.time}</span></div>
                                         </div>
                                         <button onClick={() => setConfirmModal(rank.id)} className={`w-full ${rank.btn} text-white text-sm font-bold py-3 rounded-md transition-colors mt-auto flex items-center justify-center gap-2 duration-300`}>Assinar Contrato</button>
