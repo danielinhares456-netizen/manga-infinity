@@ -28,8 +28,8 @@ import { LibraryView } from './LibraryView';
 import { NexoView } from './NexoView';
 import { ProfileView } from './ProfileView';
 
-import DetailsView from './DetailsView';
-import ReaderView from './ReaderView';
+import { DetailsView } from './DetailsView';
+import { ReaderView } from './ReaderView';
 
 function MangaInfinityApp() {
   const [splashTimerDone, setSplashTimerDone] = useState(false);
