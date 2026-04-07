@@ -1,25 +1,23 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronLeft, ChevronRight, Star, ZoomIn, ZoomOut, Hexagon, Infinity as InfinityIcon } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Star, ZoomIn, ZoomOut } from 'lucide-react';
 
 export default function ReaderView({ manga, chapter, user, userProfileData, onBack, onChapterClick, triggerRandomDrop, onMarkAsRead, readMode, onRequireLogin, showToast, libraryData, onToggleLibrary }) {
   const [showUI, setShowUI] = useState(true);
   const [zoom, setZoom] = useState(1); 
-  const [isChapterLoading, setIsChapterLoading] = useState(true); // O ESTADO DE CARREGAMENTO!
+  const [isChapterLoading, setIsChapterLoading] = useState(true); 
   
   const readingTimeRef = useRef(0);
   const [currentPage, setCurrentPage] = useState(0);
 
-  // Controle de Mudança de Capítulo
   useEffect(() => {
-      setIsChapterLoading(true); // Aciona a tela de carregamento surreal
+      setIsChapterLoading(true); 
       window.scrollTo(0, 0);
       setCurrentPage(0);
       setZoom(1);
       
-      // O portal gira por 1.5s antes de revelar as páginas
       const loadTimer = setTimeout(() => {
           setIsChapterLoading(false);
-      }, 1500);
+      }, 1200);
 
       return () => clearTimeout(loadTimer);
   }, [chapter.id]);
@@ -52,37 +50,33 @@ export default function ReaderView({ manga, chapter, user, userProfileData, onBa
   return (
       <div className="min-h-screen bg-[#030407] text-white relative flex flex-col overflow-x-hidden select-none" onScroll={handleScroll}>
          
-         {/* TELA DE CARREGAMENTO F*DA (O PORTAL SURREAL) */}
+         {/* ESTILOS DA NOVA ANIMAÇÃO "CORTE DE ESPADA / TINTA" */}
          <style>{`
-            @keyframes portalSpin {
-                0% { transform: rotate(0deg) scale(0.8); filter: hue-rotate(0deg); }
-                50% { transform: rotate(180deg) scale(1.3); filter: hue-rotate(180deg) drop-shadow(0 0 40px #d946ef); }
-                100% { transform: rotate(360deg) scale(0.8); filter: hue-rotate(360deg); }
+            @keyframes slashCut {
+                0% { width: 0%; opacity: 1; box-shadow: 0 0 20px #22d3ee; }
+                50% { width: 100%; opacity: 1; box-shadow: 0 0 40px #22d3ee; }
+                100% { width: 100%; opacity: 0; box-shadow: 0 0 0px transparent; }
             }
-            .loader-portal {
-                animation: portalSpin 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+            .animate-slash {
+                animation: slashCut 1s cubic-bezier(0.8, 0, 0.2, 1) forwards;
             }
-            @keyframes pulseText {
-                0%, 100% { opacity: 0.5; letter-spacing: 0.2em; }
-                50% { opacity: 1; letter-spacing: 0.4em; text-shadow: 0 0 20px #22d3ee; }
+            @keyframes pageReveal {
+                0% { opacity: 0; filter: blur(20px) grayscale(100%); transform: scale(1.05); }
+                100% { opacity: 1; filter: blur(0px) grayscale(0%); transform: scale(1); }
             }
-            .loader-text {
-                animation: pulseText 1.5s ease-in-out infinite;
+            .animate-reveal {
+                animation: pageReveal 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
             }
          `}</style>
 
          {isChapterLoading && (
-             <div className="fixed inset-0 z-[9999] bg-[#020205] flex flex-col items-center justify-center">
-                 <div className="relative w-40 h-40 flex items-center justify-center loader-portal mb-8">
-                    <Hexagon className="absolute w-full h-full text-cyan-500 opacity-50" strokeWidth={0.5} />
-                    <Hexagon className="absolute w-3/4 h-3/4 text-fuchsia-500 animate-[spin_3s_linear_reverse_infinite]" strokeWidth={1} />
-                    <InfinityIcon className="w-16 h-16 text-white drop-shadow-[0_0_15px_#fff]" />
-                 </div>
-                 <h2 className="text-cyan-400 font-black text-xl loader-text uppercase">Sincronizando...</h2>
+             <div className="fixed inset-0 z-[9999] bg-[#030407] flex items-center justify-center">
+                 {/* A Fenda de Luz */}
+                 <div className="h-[2px] bg-white animate-slash relative shadow-[0_0_20px_#fff]"></div>
+                 <span className="absolute bottom-10 text-xs font-black tracking-[0.5em] text-cyan-400 uppercase animate-pulse">Sincronizando</span>
              </div>
          )}
 
-         {/* Barra Superior */}
          {showUI && !isChapterLoading && (
             <div className="fixed top-0 left-0 right-0 h-16 bg-[#030407]/95 backdrop-blur-xl z-50 flex justify-between items-center px-4 border-b border-white/5 shadow-md transition-opacity animate-in slide-in-from-top-full">
                <div className="flex items-center gap-3 overflow-hidden">
@@ -104,9 +98,8 @@ export default function ReaderView({ manga, chapter, user, userProfileData, onBa
             </div>
          )}
 
-         {/* Área de Leitura */}
          {!isChapterLoading && (
-             <div className="flex-1 w-full mx-auto cursor-pointer overflow-x-auto origin-center animate-in fade-in duration-700" onClick={() => setShowUI(!showUI)}>
+             <div className="flex-1 w-full mx-auto cursor-pointer overflow-x-auto origin-center animate-reveal" onClick={() => setShowUI(!showUI)}>
                 {readMode === 'Páginas' ? (
                    <div className="w-full h-screen flex flex-col items-center justify-center pt-16 pb-20 px-2 relative overflow-hidden">
                       <img src={pages[currentPage]} className="max-h-full object-contain shadow-2xl transition-all duration-300" style={{ width: `${zoom * 100}%` }} />
@@ -126,7 +119,6 @@ export default function ReaderView({ manga, chapter, user, userProfileData, onBa
              </div>
          )}
 
-         {/* Barra Inferior */}
          {showUI && !isChapterLoading && (
             <div className="fixed bottom-0 left-0 right-0 bg-[#030407]/95 backdrop-blur-xl z-50 p-4 border-t border-white/5 shadow-lg flex justify-between items-center transition-opacity animate-in slide-in-from-bottom-full">
                <button onClick={() => prevChapter && onChapterClick(manga, prevChapter)} disabled={!prevChapter} className="bg-[#0d0d12] disabled:opacity-30 disabled:hover:border-white/10 border border-white/10 hover:border-cyan-500 px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-1 transition-colors"><ChevronLeft className="w-4 h-4"/> Anterior</button>
