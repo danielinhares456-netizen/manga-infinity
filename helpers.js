@@ -30,7 +30,7 @@ export const compressImage = (file, maxWidth = 300, quality = 0.4) => {
 };
 
 export const timeAgo = (timestamp) => {
-    if (!timestamp) return 'Antigo'; 
+    if (!timestamp) return 'No Vazio'; 
     const timeMs = typeof timestamp === 'string' ? new Date(timestamp).getTime() : timestamp;
     const diffMs = Date.now() - timeMs;
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
@@ -53,9 +53,13 @@ export const getLevelRequirement = (level) => {
 };
 
 export const getLevelTitle = (level) => {
-    if(level < 5) return "Leitor Novato"; if(level < 10) return "Explorador de Mundos"; if(level < 20) return "Caçador de Patentes";
-    if(level < 30) return "Mestre dos Enigmas"; if(level < 50) return "Monarca das Sombras"; if(level < 100) return "Lenda Viva";
-    return "Entidade Cósmica";
+    if(level < 5) return "Poeira Cósmica"; 
+    if(level < 10) return "Fragmento do Vazio"; 
+    if(level < 20) return "Viajante do Abismo";
+    if(level < 30) return "Guardião do Infinito"; 
+    if(level < 50) return "Entidade Cósmica"; 
+    if(level < 100) return "Senhor do Vazio";
+    return "Singularidade Absoluta";
 };
 
 export const addXpLogic = (currentXp, currentLvl, gainedXp) => {
