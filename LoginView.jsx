@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { BookOpen, Loader2 } from 'lucide-react';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
-import { auth } from '../services/firebase';
+import { auth } from './firebase';
 
-export default function LoginView({ onLoginSuccess, onGuestAccess }) {
+export function LoginView({ onLoginSuccess, onGuestAccess }) {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -14,10 +14,8 @@ export default function LoginView({ onLoginSuccess, onGuestAccess }) {
   const handleSubmit = async (e) => {
     e.preventDefault(); setError(''); setLoading(true);
     try {
-      if (isLogin) { 
-        await signInWithEmailAndPassword(auth, email, password); 
-        onLoginSuccess(); 
-      } else {
+      if (isLogin) { await signInWithEmailAndPassword(auth, email, password); onLoginSuccess(); } 
+      else {
         if (!name.trim()) throw { code: 'custom/missing-name' };
         const userCred = await createUserWithEmailAndPassword(auth, email, password);
         await updateProfile(userCred.user, { displayName: name });
@@ -44,9 +42,7 @@ export default function LoginView({ onLoginSuccess, onGuestAccess }) {
           <h2 className="text-2xl font-black text-white">{isLogin ? 'Bem-vindo de volta' : 'Despertar'}</h2>
           <p className="text-gray-400/60 mt-2 text-sm font-medium">Faça login para favoritar e guardar o seu progresso.</p>
         </div>
-        
         {error && <div className="bg-red-500/10 text-red-400 p-3 rounded-md mb-5 text-sm font-bold border border-red-500/20 text-center animate-in zoom-in-95">{error}</div>}
-        
         <form onSubmit={handleSubmit} className="space-y-4">
           {!isLogin && <input type="text" value={name} onChange={e=>setName(e.target.value)} placeholder="Ex: Monarca das Sombras" className="w-full bg-[#050508] border border-white/10 rounded-md px-4 py-3 text-white outline-none focus:border-cyan-500 transition-colors font-medium text-sm" required />}
           <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="seu.email@dominio.com" className="w-full bg-[#050508] border border-white/10 rounded-md px-4 py-3 text-white outline-none focus:border-cyan-500 transition-colors font-medium text-sm" required />
@@ -67,4 +63,3 @@ export default function LoginView({ onLoginSuccess, onGuestAccess }) {
     </div>
   );
 }
-
