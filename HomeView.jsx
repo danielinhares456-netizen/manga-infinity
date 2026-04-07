@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { BookOpen, Star, Clock, ChevronLeft, ChevronRight, Play } from 'lucide-react';
-import { timeAgo } from '../utils/helpers';
+import { BookOpen, Star, Play, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
+import { timeAgo } from './helpers';
 
-export default function HomeView({ mangas, onNavigate, dataSaver }) {
+export function HomeView({ mangas, onNavigate, dataSaver }) {
   const [currentPage, setCurrentPage] = useState(1);
   const [recentFilter, setRecentFilter] = useState('Todos');
   const itemsPerPage = 12;
@@ -16,7 +16,7 @@ export default function HomeView({ mangas, onNavigate, dataSaver }) {
     return () => clearInterval(timer);
   }, [heroMangas]);
 
-  if (mangas.length === 0) return <div className="text-center py-32 text-gray-400/60"><BookOpen className="w-16 h-16 mx-auto mb-4 text-[#0d0d12]"/>Nenhuma obra cadastrada. Acesse o Painel Admin para enviar obras.</div>;
+  if (mangas.length === 0) return <div className="text-center py-32 text-gray-400/60"><BookOpen className="w-16 h-16 mx-auto mb-4 text-[#0d0d12]"/>Nenhuma obra cadastrada.</div>;
 
   const destaque = heroMangas.length > 0 ? heroMangas[heroIndex] : mangas[0]; 
   
@@ -80,9 +80,7 @@ export default function HomeView({ mangas, onNavigate, dataSaver }) {
             <div key={`pop-${manga.id}`} className="group cursor-pointer flex flex-col gap-1.5" onClick={() => onNavigate('details', manga)}>
               <div className={`relative aspect-[2/3] rounded-lg overflow-hidden mb-2 bg-[#0d0d12] border border-white/10 shadow-sm ${dataSaver ? 'blur-[1px]' : ''}`}>
                 <img src={manga.coverUrl} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                {manga.ratingCount > 0 && (
-                    <div className="absolute top-2 right-2 bg-yellow-500/90 text-black text-[9px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 shadow"><Star className="w-2.5 h-2.5 fill-current" /> {Number(manga.rating).toFixed(1)}</div>
-                )}
+                {manga.ratingCount > 0 && ( <div className="absolute top-2 right-2 bg-yellow-500/90 text-black text-[9px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 shadow"><Star className="w-2.5 h-2.5 fill-current" /> {Number(manga.rating).toFixed(1)}</div> )}
               </div>
               <h3 className="font-bold text-xs md:text-sm text-gray-200 line-clamp-1 group-hover:text-cyan-400 transition-colors duration-300">{manga.title}</h3>
             </div>
