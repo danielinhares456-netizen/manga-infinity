@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Target, Hexagon, ShoppingCart, Search, Key, Check, ShieldAlert, Compass, BookOpen, Timer, Star, Skull, Zap, Flame, Sparkles } from 'lucide-react';
+import { Target, Hexagon, ShoppingCart, ShieldAlert, Key, Check, Compass, Timer, Star, Skull, Zap, Search, Sparkles } from 'lucide-react';
 import { doc, updateDoc } from "firebase/firestore";
-import { MULTIVERSO_ENIGMAS, translateToPtBr, addXpLogic, removeXpLogic, getRarityColor } from '../utils/helpers';
+import { db } from './firebase';
+import { translateToPtBr, addXpLogic, removeXpLogic, getRarityColor } from './helpers';
+import { MULTIVERSO_ENIGMAS } from './constants';
 
-export default function NexoView({ user, userProfileData, showToast, mangas, db, appId, onNavigate, onLevelUp, synthesizeCrystal, shopItems, buyItem, equipItem }) {
+export function NexoView({ user, userProfileData, showToast, mangas, db, appId, onNavigate, onLevelUp, synthesizeCrystal, shopItems, buyItem, equipItem }) {
     const [activeTab, setActiveTab] = useState("Missões");
     const [enigmaAnswer, setEnigmaAnswer] = useState("");
     const [timeLeft, setTimeLeft] = useState("");
@@ -20,11 +22,7 @@ export default function NexoView({ user, userProfileData, showToast, mangas, db,
                 const h = Math.floor((diff / (1000 * 60 * 60)) % 24);
                 const m = Math.floor((diff / 1000 / 60) % 60);
                 const s = Math.floor((diff / 1000) % 60);
-                let timeStr = "";
-                if (d > 0) timeStr += `${d}d `;
-                if (h > 0 || d > 0) timeStr += `${h}h `;
-                timeStr += `${m}m ${s}s`;
-                setTimeLeft(timeStr);
+                setTimeLeft(`${d > 0 ? d+'d ' : ''}${h > 0 || d > 0 ? h+'h ' : ''}${m}m ${s}s`);
             }
         };
         updateTimer();
@@ -46,20 +44,15 @@ export default function NexoView({ user, userProfileData, showToast, mangas, db,
             const data = await res.json();
             const itemApi = data.data;
             if(!itemApi || !itemApi.title || !itemApi.synopsis) return null;
-            
-            let synopsis = itemApi.synopsis.split('[')[0].trim(); 
             let snippetLength = difficulty.includes('S') ? 80 : (difficulty.includes('A') || difficulty.includes('B') ? 150 : 300);
-            let shortSynopsis = synopsis.substring(0, snippetLength) + "...";
+            let shortSynopsis = itemApi.synopsis.split('[')[0].trim().substring(0, snippetLength) + "...";
             let translatedSynopsis = await translateToPtBr(shortSynopsis);
             let translatedGenres = await translateToPtBr(itemApi.genres && itemApi.genres.length > 0 ? itemApi.genres.map(g => g.name).slice(0, difficulty.includes('S') ? 1 : 3).join(', ') : "Desconhecidos");
-            
-            let q = `[SINAL GLOBAL INTERCEPTADO]\n\nSinopse Parcial:\n"${translatedSynopsis}"\n\nGêneros: ${translatedGenres}\n\nQual é o nome original ou em inglês da obra?`;
-            let answers = [
-                itemApi.title.toLowerCase().trim(), 
-                ...(itemApi.title_english ? [itemApi.title_english.toLowerCase().trim()] : []), 
-                ...(itemApi.title_japanese ? [itemApi.title_japanese.toLowerCase().trim()] : [])
-            ];
-            return { q, a: answers, rawId: itemApi.mal_id };
+            return { 
+                q: `[SINAL GLOBAL INTERCEPTADO]\n\nSinopse Parcial:\n"${translatedSynopsis}"\n\nGêneros: ${translatedGenres}\n\nQual é o nome original ou em inglês da obra?`, 
+                a: [itemApi.title.toLowerCase().trim(), ...(itemApi.title_english ? [itemApi.title_english.toLowerCase().trim()] : []), ...(itemApi.title_japanese ? [itemApi.title_japanese.toLowerCase().trim()] : [])], 
+                rawId: itemApi.mal_id 
+            };
         } catch(e) { return null; }
     };
 
@@ -67,8 +60,7 @@ export default function NexoView({ user, userProfileData, showToast, mangas, db,
         try {
             const now = Date.now();
             let completed = userProfileData.completedMissions || [];
-            let possibleTypes = [0, 1, 2]; 
-            let missionType = possibleTypes[Math.floor(Math.random() * possibleTypes.length)];
+            let missionType = [0, 1, 2][Math.floor(Math.random() * 3)];
             let newMission = null;
 
             const rankConfigs = {
@@ -80,7 +72,6 @@ export default function NexoView({ user, userProfileData, showToast, mangas, db,
                 'Rank SSS':{ rxp: 2000, rcoin: 1000, pxp: 1000, pcoin: 500, enigmaTries: 1, enigmaTimeMin: 1,  readTimePerCapMin: 20 }
             };
             const conf = rankConfigs[difficulty];
-
             if (mangas.length === 0 && missionType !== 2) missionType = 2; 
 
             if (missionType === 1) { 
@@ -88,11 +79,8 @@ export default function NexoView({ user, userProfileData, showToast, mangas, db,
                 if(validLocalMangas.length === 0) missionType = 2; 
                 if (missionType === 1) { 
                     const randomManga = validLocalMangas[Math.floor(Math.random() * validLocalMangas.length)];
-                    let cleanDesc = randomManga.synopsis ? randomManga.synopsis.replace(/<[^>]*>?/gm, '') : '';
-                    const regex = new RegExp(randomManga.title, 'gi'); 
-                    cleanDesc = cleanDesc.replace(regex, '___');
-                    const snippetLength = difficulty.includes('S') ? 80 : 160;
-                    let q = cleanDesc.length > 20 ? `[ARQUIVO OCULTO]\n\nSinopse:\n"${cleanDesc.substring(0, snippetLength)}..."` : `[ARQUIVO OCULTO]\n\nGêneros: ${randomManga.genres.join(', ')}\nAutor: ${randomManga.author || 'Desconhecido'}`;
+                    let cleanDesc = randomManga.synopsis ? randomManga.synopsis.replace(/<[^>]*>?/gm, '').replace(new RegExp(randomManga.title, 'gi'), '___') : '';
+                    let q = cleanDesc.length > 20 ? `[ARQUIVO OCULTO]\n\nSinopse:\n"${cleanDesc.substring(0, difficulty.includes('S') ? 80 : 160)}..."` : `[ARQUIVO OCULTO]\n\nGêneros: ${randomManga.genres.join(', ')}\nAutor: ${randomManga.author || 'Desconhecido'}`;
                     newMission = { id: Date.now().toString(), type: 'search_local', difficulty, title: "Caçada Infinity", question: q, targetManga: randomManga.id, targetTitle: randomManga.title, rewardXp: conf.rxp, rewardCoins: conf.rcoin, penaltyXp: conf.pxp, penaltyCoins: conf.pcoin, deadline: now + (conf.enigmaTimeMin * 60 * 1000) };
                     completed.push("enigma_local_" + randomManga.id);
                 }
@@ -126,7 +114,6 @@ export default function NexoView({ user, userProfileData, showToast, mangas, db,
                     completed.push(enigmaData.q); 
                 }
             }
-        
             await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'main'), { activeMission: newMission, completedMissions: completed });
             showToast(`Contrato Assinado!`, "success");
         } catch(e) { showToast("Falha na Fenda do Nexo.", "error"); } finally { setIsForgingMission(false); }
@@ -185,10 +172,10 @@ export default function NexoView({ user, userProfileData, showToast, mangas, db,
     };
 
     const RANK_CARDS = [
-        { id: 'Rank E', color: 'text-cyan-400', border: 'border-cyan-500/30', hover: 'hover:border-cyan-500/60', btn: 'bg-cyan-600 hover:bg-cyan-500 text-white', rxp: 30, rcoin: 15, success: '95%', time: '~ 15 min' },
-        { id: 'Rank C', color: 'text-emerald-400', border: 'border-emerald-500/30', hover: 'hover:border-emerald-500/60', btn: 'bg-emerald-600 hover:bg-emerald-500 text-white', rxp: 100, rcoin: 50, success: '80%', time: '~ 30 min' },
-        { id: 'Rank B', color: 'text-violet-400', border: 'border-violet-500/30', hover: 'hover:border-violet-500/60', btn: 'bg-violet-600 hover:bg-violet-500 text-white', rxp: 150, rcoin: 80, success: '65%', time: '~ 1 Hora' },
-        { id: 'Rank A', color: 'text-fuchsia-400', border: 'border-fuchsia-500/30', hover: 'hover:border-fuchsia-500/60', btn: 'bg-fuchsia-600 hover:bg-fuchsia-500 text-white', rxp: 300, rcoin: 150, success: '40%', time: '~ 3 Horas' },
+        { id: 'Rank E', color: 'text-cyan-400', border: 'border-cyan-500/30', hover: 'hover:border-cyan-500/60', btn: 'bg-cyan-600 hover:bg-cyan-500', rxp: 30, rcoin: 15, success: '95%', time: '~ 15 min' },
+        { id: 'Rank C', color: 'text-emerald-400', border: 'border-emerald-500/30', hover: 'hover:border-emerald-500/60', btn: 'bg-emerald-600 hover:bg-emerald-500', rxp: 100, rcoin: 50, success: '80%', time: '~ 30 min' },
+        { id: 'Rank B', color: 'text-violet-400', border: 'border-violet-500/30', hover: 'hover:border-violet-500/60', btn: 'bg-violet-600 hover:bg-violet-500', rxp: 150, rcoin: 80, success: '65%', time: '~ 1 Hora' },
+        { id: 'Rank A', color: 'text-fuchsia-400', border: 'border-fuchsia-500/30', hover: 'hover:border-fuchsia-500/60', btn: 'bg-fuchsia-600 hover:bg-fuchsia-500', rxp: 300, rcoin: 150, success: '40%', time: '~ 3 Horas' },
     ];
 
     return (
@@ -196,21 +183,14 @@ export default function NexoView({ user, userProfileData, showToast, mangas, db,
             {isForgingMission && (
                 <div className="fixed inset-0 z-[3000] bg-[#020205]/95 backdrop-blur-xl flex flex-col items-center justify-center animate-in fade-in duration-300 w-full">
                     <style>{`@keyframes spin-slow { 100% { transform: rotate(360deg); } }`}</style>
-                    <div className="relative w-48 h-48 flex items-center justify-center">
-                        <div className="absolute inset-0 bg-gradient-to-tr from-cyan-500 via-emerald-500 to-fuchsia-500 rounded-full blur-[40px] animate-pulse opacity-60"></div>
-                        <div className="absolute inset-4 border-[2px] border-white/20 border-dashed rounded-full animate-[spin_4s_linear_infinite]"></div>
-                        <div className="absolute inset-8 border-[3px] border-t-cyan-400 border-b-fuchsia-400 border-l-transparent border-r-transparent rounded-full animate-[spin_1.5s_linear_infinite]"></div>
-                        <div className="absolute inset-12 bg-black/60 backdrop-blur-md rounded-full shadow-[0_0_30px_rgba(255,255,255,0.2)] flex items-center justify-center"><Zap className="w-10 h-10 text-white drop-shadow-[0_0_15px_#fff] animate-pulse" /></div>
-                    </div>
+                    <div className="relative w-48 h-48 flex items-center justify-center"><div className="absolute inset-0 bg-gradient-to-tr from-cyan-500 via-emerald-500 to-fuchsia-500 rounded-full blur-[40px] animate-pulse opacity-60"></div><div className="absolute inset-4 border-[2px] border-white/20 border-dashed rounded-full animate-[spin_4s_linear_infinite]"></div><div className="absolute inset-8 border-[3px] border-t-cyan-400 border-b-fuchsia-400 border-l-transparent border-r-transparent rounded-full animate-[spin_1.5s_linear_infinite]"></div><div className="absolute inset-12 bg-black/60 backdrop-blur-md rounded-full shadow-[0_0_30px_rgba(255,255,255,0.2)] flex items-center justify-center"><Zap className="w-10 h-10 text-white drop-shadow-[0_0_15px_#fff] animate-pulse" /></div></div>
                     <h2 className="mt-12 text-lg md:text-xl font-black text-center text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 via-white to-fuchsia-300 tracking-[0.4em] md:tracking-[0.6em] animate-pulse">FORJANDO NEXO...</h2>
                 </div>
             )}
             {confirmModal && (
                 <div className="fixed inset-0 z-[2000] bg-[#030407]/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300" onClick={() => setConfirmModal(null)}>
                     <div className="bg-[#0d0d12] border border-white/10 p-6 rounded-xl shadow-[0_0_40px_rgba(217,70,239,0.2)] max-w-sm w-full text-center" onClick={e => e.stopPropagation()}>
-                        <ShieldAlert className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
-                        <h3 className="text-xl font-black text-white mb-2">Confirmar Contrato?</h3>
-                        <p className="text-sm text-gray-400/60 mb-6">Ao aceitar uma missão <b>{confirmModal}</b>, você estará sujeito às penalidades caso o tempo esgote ou suas vidas acabem.</p>
+                        <ShieldAlert className="w-12 h-12 text-yellow-500 mx-auto mb-4" /><h3 className="text-xl font-black text-white mb-2">Confirmar Contrato?</h3><p className="text-sm text-gray-400/60 mb-6">Ao aceitar uma missão <b>{confirmModal}</b>, você estará sujeito às penalidades caso o tempo esgote ou suas vidas acabem.</p>
                         <div className="flex gap-3"><button onClick={() => setConfirmModal(null)} className="flex-1 bg-[#050508] border border-white/10 text-gray-300/80 font-bold py-3 rounded-lg hover:text-white transition-colors text-sm duration-300">Recusar</button><button onClick={() => triggerForgeMission(confirmModal)} className="flex-1 bg-gradient-to-r from-cyan-600 to-fuchsia-600 text-white font-black py-3 rounded-lg hover:scale-105 transition-transform shadow-md text-sm duration-300">Assinar</button></div>
                     </div>
                 </div>
@@ -256,7 +236,6 @@ export default function NexoView({ user, userProfileData, showToast, mangas, db,
                                         <div className="flex justify-between items-end mb-2"><span className="text-[9px] font-black text-gray-400/60 uppercase tracking-widest flex items-center gap-1"><ShieldAlert className="w-3 h-3 text-cyan-400"/> Progresso</span><span className="text-base font-black text-white">{userProfileData.activeMission.currentCount} <span className="text-gray-400/60 text-xs">/ {userProfileData.activeMission.targetCount}</span></span></div>
                                         <div className="w-full bg-[#050508] rounded-full h-1.5 overflow-hidden border border-white/10"><div className="bg-gradient-to-r from-cyan-500 to-fuchsia-500 h-full rounded-full transition-all duration-500" style={{width: `${(userProfileData.activeMission.currentCount / userProfileData.activeMission.targetCount) * 100}%`}}></div></div>
                                         <p className="mt-2.5 text-sm text-gray-400/60 font-medium text-center">{userProfileData.activeMission.desc}</p>
-                                        <button onClick={() => { const m = mangas.find(mg => mg.id === userProfileData.activeMission.targetManga); if(m) onNavigate('details', m); }} className="mt-3 w-full bg-cyan-100 text-black py-3 rounded-md font-black transition-colors hover:bg-white flex justify-center items-center gap-1.5 text-sm shadow duration-300"><BookOpen className="w-4 h-4"/> Abrir Obra Local</button>
                                     </div>
                                 )}
                             </div>
@@ -315,7 +294,7 @@ export default function NexoView({ user, userProfileData, showToast, mangas, db,
                          </div>
                        </div>
                        <div className="bg-[#050508] border border-white/10 p-5 rounded-lg relative overflow-hidden flex flex-col items-center justify-center text-center shadow-inner">
-                          <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-3 relative transition-all duration-1000 ${synthesizing ? 'scale-125' : ''}`}><div className={`absolute inset-0 rounded-full border-2 border-t-cyan-500 border-r-emerald-500 border-b-transparent border-l-transparent ${synthesizing ? 'animate-[spin_0.5s_linear_infinite] opacity-100' : 'opacity-20'}`}></div><Flame className={`w-8 h-8 ${synthesizing ? 'text-white animate-pulse drop-shadow-[0_0_15px_rgba(255,255,255,0.8)]' : 'text-emerald-400'}`} /></div>
+                          <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-3 relative transition-all duration-1000 ${synthesizing ? 'scale-125' : ''}`}><div className={`absolute inset-0 rounded-full border-2 border-t-cyan-500 border-r-emerald-500 border-b-transparent border-l-transparent ${synthesizing ? 'animate-[spin_0.5s_linear_infinite] opacity-100' : 'opacity-20'}`}></div><Zap className={`w-8 h-8 ${synthesizing ? 'text-white animate-pulse drop-shadow-[0_0_15px_rgba(255,255,255,0.8)]' : 'text-emerald-400'}`} /></div>
                           <p className="text-xs text-gray-400/60 font-medium mb-4 max-w-[200px]">Custo: 5 Cristais (40% chance de falhar).</p>
                           <button onClick={runSynthesis} disabled={synthesizing || (userProfileData.crystals || 0) < 5} className="w-full sm:w-48 bg-gradient-to-r from-emerald-600 to-cyan-600 text-white font-black py-3 rounded-md flex items-center justify-center gap-1.5 hover:scale-105 transition-transform disabled:opacity-50 disabled:hover:scale-100 text-sm shadow-md duration-300">{synthesizing ? 'SINTETIZANDO...' : 'SINTETIZAR (-5)'}</button>
                        </div>
@@ -355,199 +334,4 @@ export default function NexoView({ user, userProfileData, showToast, mangas, db,
             )}
         </div>
     );
-}
-
-export function ProfileView({ user, userProfileData, historyData, libraryData, dataLoaded, userSettings, updateSettings, onLogout, onUpdateData, showToast, mangas, onNavigate }) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [activeTab, setActiveTab] = useState("Estatisticas"); 
-  const [name, setName] = useState('');
-  const [bio, setBio] = useState('');
-  const [avatarBase64, setAvatarBase64] = useState('');
-  const [coverBase64, setCoverBase64] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    setName(user.displayName || '');
-    setBio(userProfileData.bio || '');
-    setAvatarBase64(userProfileData.avatarUrl || user.photoURL || '');
-    setCoverBase64(userProfileData.coverUrl || '');
-  }, [user, userProfileData]);
-  
-  const avatarInputRef = useRef(null); 
-  const coverInputRef = useRef(null);
-
-  const handleImageUpload = async (e, type) => {
-    const file = e.target.files[0]; if (!file) return;
-    try {
-      const compressedBase64 = await compressImage(file, type === 'cover' ? 400 : 150, 0.4);
-      if (type === 'avatar') setAvatarBase64(compressedBase64); else setCoverBase64(compressedBase64);
-    } catch (err) { showToast("Erro na imagem.", "error"); }
-  };
-
-  const handleSave = async (e) => {
-    e.preventDefault(); setLoading(true);
-    try {
-      await updateProfile(auth.currentUser, { displayName: name });
-      const docData = { coverUrl: coverBase64, avatarUrl: avatarBase64, bio: bio };
-      await setDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'profile', 'main'), docData, { merge: true });
-      onUpdateData(docData);
-      showToast('Perfil salvo com sucesso!', 'success'); setIsEditing(false);
-    } catch (error) { showToast(`Erro: Falha na conexão.`, 'error'); } finally { setLoading(false); }
-  };
-
-  const level = userProfileData.level || 1;
-  const currentXp = userProfileData.xp || 0;
-  const xpNeeded = getLevelRequirement(level);
-  const progressPercent = Math.min(100, (currentXp / xpNeeded) * 100);
-
-  const lidosSet = new Set(historyData.map(h => h.mangaId));
-  const obrasLidasIds = Array.from(lidosSet);
-  const libraryMangaIds = Object.keys(libraryData);
-  const libraryMangas = mangas.filter(m => libraryMangaIds.includes(m.id));
-
-  return (
-    <div className="animate-in fade-in duration-500 w-full pb-20">
-      <div className="h-40 md:h-64 w-full bg-[#0d0d12] relative group border-b border-white/10 overflow-hidden">
-        {userProfileData.activeCover ? <img src={userProfileData.activeCover} className="w-full h-full object-cover" /> : coverBase64 ? <img src={coverBase64} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-gradient-to-r from-[#0d0d12] to-[#030407]" />}
-        <div className="absolute inset-0 bg-gradient-to-t from-[#030407] via-transparent to-transparent" />
-        {isEditing && <button onClick={() => coverInputRef.current.click()} className="absolute top-4 right-4 bg-black/60 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-bold z-10 transition-colors hover:bg-black/80 duration-300"><Camera className="w-4 h-4" /> Capa</button>}
-        <input type="file" accept="image/*" ref={coverInputRef} className="hidden" onChange={(e) => handleImageUpload(e, 'cover')} />
-      </div>
-
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 relative -mt-16 md:-mt-20 z-10">
-        <div className="flex flex-col md:flex-row items-center md:items-end gap-4 mb-8">
-          <div className="relative group">
-            <div className={`w-28 h-28 md:w-36 md:h-36 rounded-full border-4 border-[#030407] bg-[#0d0d12] flex items-center justify-center relative flex-shrink-0 ${userProfileData.activeFrame || ''}`}>
-              <div className="w-full h-full rounded-full overflow-hidden">
-                {avatarBase64 ? <img src={avatarBase64} className="w-full h-full object-cover" /> : <UserCircle className="w-full h-full text-gray-400/60 bg-[#0d0d12]" />}
-              </div>
-            </div>
-            {isEditing && <button onClick={() => avatarInputRef.current.click()} className="absolute bottom-0 right-0 bg-fuchsia-600 p-3 rounded-full text-white z-10 shadow-lg hover:bg-fuchsia-500 transition-colors duration-300"><Camera className="w-5 h-5" /></button>}
-            <input type="file" accept="image/*" ref={avatarInputRef} className="hidden" onChange={(e) => handleImageUpload(e, 'avatar')} />
-          </div>
-
-          <div className="flex-1 text-center md:text-left">
-            <h1 className="text-2xl md:text-4xl font-black text-white">{name || 'Sem Nome'}</h1>
-            <p className="text-cyan-400 font-medium mb-1 text-sm">{user.email}</p>
-            {bio && !isEditing && <p className="text-gray-400/80 text-xs mb-3 italic">"{bio}"</p>}
-            <div className="w-full max-w-sm mx-auto md:mx-0 bg-[#0d0d12] p-3 rounded-md border border-white/10 shadow-inner mt-2">
-              <div className="flex justify-between text-xs font-black uppercase mb-2 tracking-widest"><span className="text-fuchsia-400">Nível {level} - <span className="text-gray-300/80">{getLevelTitle(level)}</span></span><span className="text-gray-400/60">{currentXp} / {xpNeeded} XP</span></div>
-              <div className="w-full bg-[#050508] rounded-full h-2 overflow-hidden border border-white/10"><div className="bg-gradient-to-r from-cyan-500 to-fuchsia-500 h-full rounded-full transition-all duration-1000 relative" style={{width: `${progressPercent}%`}}></div></div>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <button onClick={() => setIsEditing(!isEditing)} className="bg-[#0d0d12] text-white px-5 py-2.5 rounded-md text-sm font-bold flex items-center gap-2 transition-colors duration-300 hover:bg-white/5 border border-white/10"><Edit3 className="w-4 h-4" /> {isEditing ? 'Cancelar' : 'Editar'}</button>
-            <button onClick={onLogout} className="bg-red-500/10 text-red-500 p-2.5 rounded-md transition-colors duration-300 hover:bg-red-500 hover:text-white border border-red-500/20"><LogOut className="w-5 h-5" /></button>
-          </div>
-        </div>
-        
-        {isEditing ? (
-          <form onSubmit={handleSave} className="bg-[#0d0d12]/50 border border-white/10 rounded-xl p-6 animate-in slide-in-from-bottom-4 shadow-xl">
-            <div className="space-y-4">
-              <input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full bg-[#050508] border border-white/10 rounded-md px-4 py-3 text-white text-sm font-bold outline-none focus:border-cyan-500 transition-colors duration-300" placeholder="Seu Nome"/>
-              <textarea value={bio} onChange={e => setBio(e.target.value)} rows={4} className="w-full bg-[#050508] border border-white/10 rounded-md px-4 py-3 text-white text-sm resize-none outline-none focus:border-cyan-500 transition-colors duration-300" placeholder="Biografia ou frase de efeito..."></textarea>
-            </div>
-            <button type="submit" disabled={loading} className="mt-5 bg-gradient-to-r from-cyan-600 to-fuchsia-600 text-white text-sm font-black px-8 py-3 rounded-md w-full flex justify-center hover:scale-[1.02] transition-transform duration-300 shadow-md">{loading ? <Loader2 className="w-5 h-5 animate-spin"/> : 'Salvar Informações'}</button>
-          </form>
-        ) : (
-          <div>
-            <div className="flex gap-3 border-b border-white/10 mb-6 overflow-x-auto scrollbar-hide pb-2">
-              <button onClick={() => setActiveTab("Estatisticas")} className={`px-4 py-2 rounded-md font-bold transition-all whitespace-nowrap text-sm duration-300 flex items-center gap-2 ${activeTab === "Estatisticas" ? 'bg-[#0d0d12] text-white border border-white/10' : 'text-gray-400/80 hover:text-white border border-transparent'}`}><Compass className="w-4 h-4"/> Estatísticas</button>
-              <button onClick={() => setActiveTab("Historico")} className={`px-4 py-2 rounded-md font-bold transition-all whitespace-nowrap text-sm duration-300 flex items-center gap-2 ${activeTab === "Historico" ? 'bg-[#0d0d12] text-white border border-white/10' : 'text-gray-400/80 hover:text-white border border-transparent'}`}><History className="w-4 h-4"/> Histórico</button>
-              <button onClick={() => setActiveTab("Biblioteca")} className={`px-4 py-2 rounded-md font-bold transition-all whitespace-nowrap text-sm duration-300 flex items-center gap-2 ${activeTab === "Biblioteca" ? 'bg-[#0d0d12] text-white border border-white/10' : 'text-gray-400/80 hover:text-white border border-transparent'}`}><Library className="w-4 h-4"/> Lista Lida</button>
-              <button onClick={() => setActiveTab("Configuracoes")} className={`px-4 py-2 rounded-md font-bold transition-all whitespace-nowrap text-sm duration-300 flex items-center gap-2 ${activeTab === "Configuracoes" ? 'bg-[#0d0d12] text-white border border-white/10' : 'text-gray-400/80 hover:text-white border border-transparent'}`}><Smartphone className="w-4 h-4"/> Confs</button>
-            </div>
-            
-            {activeTab === "Estatisticas" && (
-              <div className="space-y-4 animate-in fade-in duration-300">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="bg-[#0d0d12] border border-white/10 p-5 rounded-xl text-center shadow-sm"><div className="text-3xl font-black text-white mb-1">{!dataLoaded ? <Loader2 className="w-6 h-6 animate-spin mx-auto text-cyan-500"/> : Object.keys(libraryData).length}</div><div className="text-[10px] text-gray-400/60 uppercase font-black tracking-widest">Obras Salvas</div></div>
-                  <div className="bg-[#0d0d12] border border-white/10 p-5 rounded-xl text-center shadow-sm"><div className="text-3xl font-black text-fuchsia-400 mb-1">{!dataLoaded ? <Loader2 className="w-6 h-6 animate-spin mx-auto text-fuchsia-500"/> : historyData.length}</div><div className="text-[10px] text-gray-400/60 uppercase font-black tracking-widest">Capítulos Lidos</div></div>
-                  <div className="bg-[#0d0d12] border border-white/10 p-5 rounded-xl text-center shadow-sm"><div className="text-3xl font-black text-emerald-400 mb-1">{!dataLoaded ? <Loader2 className="w-6 h-6 animate-spin mx-auto text-emerald-500"/> : obrasLidasIds.length}</div><div className="text-[10px] text-gray-400/60 uppercase font-black tracking-widest">Obras Iniciadas</div></div>
-                  <div className="bg-[#0d0d12] border border-white/10 p-5 rounded-xl text-center shadow-sm"><div className="text-3xl font-black text-yellow-400 mb-1">{!dataLoaded ? <Loader2 className="w-6 h-6 animate-spin mx-auto text-yellow-500"/> : Object.values(libraryData).filter(s=>s==='Favoritos').length}</div><div className="text-[10px] text-gray-400/60 uppercase font-black tracking-widest">Favoritos</div></div>
-                </div>
-              </div>
-            )}
-
-            {activeTab === "Historico" && (
-                <div className="animate-in fade-in duration-300">
-                    {historyData.length === 0 ? (
-                        <div className="text-center py-10 bg-[#0d0d12] rounded-xl border border-white/10"><History className="w-10 h-10 mx-auto text-gray-400/60 mb-2"/><p className="text-gray-400/60 font-bold text-sm">Seu histórico de leitura está vazio.</p></div>
-                    ) : (
-                       <div className="flex flex-col gap-3">
-                          {historyData.slice(0, 15).map(hist => {
-                              const mg = mangas.find(m => m.id === hist.mangaId);
-                              return (
-                                  <div key={hist.id} onClick={() => { if(mg) onNavigate('details', mg); }} className="bg-[#0d0d12] border border-white/10 p-3 rounded-xl flex items-center gap-4 cursor-pointer hover:border-cyan-500 transition-colors duration-300">
-                                      <div className="w-12 h-16 rounded overflow-hidden flex-shrink-0 bg-[#050508] border border-white/10">{mg ? <img src={mg.coverUrl} className="w-full h-full object-cover" /> : <BookOpen className="w-6 h-6 m-auto mt-4 text-gray-400/60"/>}</div>
-                                      <div className="flex-1"><h4 className="font-bold text-white text-sm line-clamp-1">{hist.mangaTitle}</h4><p className="text-fuchsia-400 text-xs font-black mt-0.5">Cap. {hist.chapterNumber}</p></div>
-                                      <div className="text-right"><p className="text-[10px] text-gray-400/60 font-bold uppercase">{new Date(hist.timestamp).toLocaleDateString()}</p><p className="text-xs text-gray-500">{new Date(hist.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p></div>
-                                  </div>
-                              )
-                          })}
-                       </div>
-                    )}
-                </div>
-            )}
-
-            {activeTab === "Biblioteca" && (
-                <div className="animate-in fade-in duration-300">
-                    {libraryMangas.length === 0 ? (
-                        <div className="text-center py-10 bg-[#0d0d12] rounded-xl border border-white/10"><Library className="w-10 h-10 mx-auto text-gray-400/60 mb-2"/><p className="text-gray-400/60 font-bold text-sm">Sua biblioteca está vazia.</p></div>
-                    ) : (
-                       <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
-                           {libraryMangas.map(manga => {
-                               const status = libraryData[manga.id];
-                               let statusColor = "bg-gray-600";
-                               if(status === 'Lendo') statusColor = "bg-cyan-600";
-                               if(status === 'Favoritos') statusColor = "bg-yellow-500 text-black";
-                               if(status === 'Finalizado') statusColor = "bg-emerald-600";
-                               return (
-                                   <div key={manga.id} onClick={() => onNavigate('details', manga)} className="cursor-pointer group relative">
-                                       <div className="relative aspect-[2/3] rounded-lg overflow-hidden border border-white/10 shadow-sm mb-1 bg-[#050508]">
-                                           <img src={manga.coverUrl} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" />
-                                           <div className={`absolute top-0 right-0 ${statusColor} text-[8px] font-black px-1.5 py-0.5 rounded-bl-md shadow`}>{status}</div>
-                                       </div>
-                                       <h3 className="font-bold text-xs text-gray-200 line-clamp-1 group-hover:text-cyan-400">{manga.title}</h3>
-                                   </div>
-                               )
-                           })}
-                       </div>
-                    )}
-                </div>
-            )}
-            
-            {activeTab === "Configuracoes" && (
-              <div className="space-y-4 animate-in fade-in duration-300">
-                <div className="bg-[#0d0d12] border border-white/10 rounded-xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                  <h4 className="font-bold text-white flex items-center gap-2 text-sm">{userSettings.theme === 'OLED' ? <Moon className="w-5 h-5 text-gray-500"/> : <Sun className="w-5 h-5 text-yellow-500"/>} Tema do Site</h4>
-                  <div className="flex bg-[#050508] border border-white/10 rounded-md p-1 w-full sm:w-auto">
-                    <button onClick={() => updateSettings({ theme: 'Escuro' })} className={`flex-1 px-4 py-2 rounded text-xs font-bold transition-all duration-300 ${userSettings.theme === 'Escuro' || !userSettings.theme ? 'bg-[#0d0d12] text-white shadow-sm' : 'text-gray-400/60 hover:text-white'}`}>Escuro</button>
-                    <button onClick={() => updateSettings({ theme: 'OLED' })} className={`flex-1 px-4 py-2 rounded text-xs font-bold transition-all duration-300 ${userSettings.theme === 'OLED' ? 'bg-black text-white shadow-sm' : 'text-gray-400/60 hover:text-white'}`}>OLED</button>
-                    <button onClick={() => updateSettings({ theme: 'Drácula' })} className={`flex-1 px-4 py-2 rounded text-xs font-bold transition-all duration-300 ${userSettings.theme === 'Drácula' ? 'bg-[#1e1e2e] text-[#cdd6f4] shadow-sm' : 'text-gray-400/60 hover:text-white'}`}>Drácula</button>
-                  </div>
-                </div>
-
-                <div className="bg-[#0d0d12] border border-white/10 rounded-xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                  <h4 className="font-bold text-white flex items-center gap-2 text-sm"><BookOpen className="w-5 h-5 text-cyan-400"/> Formato de Leitura</h4>
-                  <div className="flex bg-[#050508] border border-white/10 rounded-md p-1 w-full sm:w-auto">
-                    <button onClick={() => updateSettings({ readMode: 'Cascata' })} className={`flex-1 px-4 py-2 rounded text-xs font-bold transition-all duration-300 ${userSettings.readMode === 'Cascata' ? 'bg-[#0d0d12] text-white shadow-sm' : 'text-gray-400/60 hover:text-white'}`}>Modo Cascata</button>
-                    <button onClick={() => updateSettings({ readMode: 'Páginas' })} className={`flex-1 px-4 py-2 rounded text-xs font-bold transition-all duration-300 ${userSettings.readMode === 'Páginas' ? 'bg-[#0d0d12] text-white shadow-sm' : 'text-gray-400/60 hover:text-white'}`}>Páginas (Slide)</button>
-                  </div>
-                </div>
-
-                <div className="bg-[#0d0d12] border border-white/10 rounded-xl p-4 flex justify-between items-center">
-                  <div>
-                      <h4 className="font-bold text-white flex items-center gap-2 text-sm"><Smartphone className="w-5 h-5 text-blue-500"/> Economia de Dados</h4>
-                      <p className="text-xs text-gray-400/60 mt-1">Borra imagens para economizar</p>
-                  </div>
-                  <button onClick={() => updateSettings({ dataSaver: !userSettings.dataSaver })} className={`w-12 h-6 rounded-full relative transition-colors duration-300 shadow-inner ${userSettings.dataSaver ? 'bg-cyan-500' : 'bg-[#050508] border border-white/10'}`}><div className={`w-4 h-4 bg-white rounded-full absolute top-[3px] transition-all duration-300 shadow ${userSettings.dataSaver ? 'left-7' : 'left-1'}`}></div></button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  );
 }
