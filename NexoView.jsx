@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Target, Hexagon, ShoppingCart, ShieldAlert, Key, Check, Compass, Timer, Star, Skull, Zap, Search, Sparkles } from 'lucide-react';
+import { Target, Hexagon, ShoppingCart, ShieldAlert, Key, Check, Compass, Timer, Star, Skull, Zap, Search, Sparkles, Clock } from 'lucide-react';
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from './firebase';
 import { translateToPtBr, addXpLogic, removeXpLogic, getRarityColor } from './helpers';
