@@ -1,11 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ChevronLeft, ChevronRight, Star, ZoomIn } from 'lucide-react';
 
-export function ReaderView({ manga, chapter, user, userProfileData, onBack, onChapterClick, triggerRandomDrop, onMarkAsRead, readMode, onRequireLogin, showToast, libraryData, onToggleLibrary }) {
-  const [showUI, setShowUI] = useState(true);
-  const readingTimeRef = useRef(0);
-  const [currentPage, setCurrentPage] = useState(0);
-
+export default function ReaderView({ manga, chapter, user, userProfileData, onBack, onChapterClick, triggerRandomDrop, onMarkAsRead, readMode, onRequireLogin, showToast, libraryData, onToggleLibrary }) {
   useEffect(() => {
       readingTimeRef.current = 0;
       const timer = setInterval(() => { readingTimeRef.current += 1; }, 1000);
