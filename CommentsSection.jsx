@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { MessageSquare, EyeOff, Eye, UserCircle, Zap, X, Loader2, Send } from 'lucide-react';
 import { query, collection, onSnapshot, addDoc } from "firebase/firestore";
-import { db } from '../services/firebase';
-import { APP_ID } from '../utils/constants';
+import { db } from './firebase';
+import { APP_ID } from './constants';
 
 export default function CommentsSection({ mangaId, chapterId, user, userProfileData, onRequireLogin, showToast }) {
   const [comments, setComments] = useState([]);
@@ -14,8 +14,7 @@ export default function CommentsSection({ mangaId, chapterId, user, userProfileD
 
   useEffect(() => {
     const path = chapterId ? `obras/${mangaId}/capitulos/${chapterId}/comments` : `obras/${mangaId}/comments`;
-    const q = query(collection(db, path));
-    const unsub = onSnapshot(q, (snap) => {
+    const unsub = onSnapshot(query(collection(db, path)), (snap) => {
       const list = [];
       snap.forEach(d => list.push({id: d.id, ...d.data()}));
       setComments(list);
@@ -39,7 +38,7 @@ export default function CommentsSection({ mangaId, chapterId, user, userProfileD
 
       if (replyingTo && replyingTo.userId !== user.uid) {
           await addDoc(collection(db, 'artifacts', APP_ID, 'users', replyingTo.userId, 'notifications'), {
-              type: 'reply', text: `${user.displayName || 'Alguém'} respondeu o seu comentário na obra/capítulo atual.`,
+              type: 'reply', text: `${user.displayName || 'Alguém'} respondeu o seu comentário.`,
               mangaId: mangaId, chapterId: chapterId || null, createdAt: Date.now(), read: false
           });
       }
@@ -115,4 +114,3 @@ export default function CommentsSection({ mangaId, chapterId, user, userProfileD
     </div>
   );
 }
-
