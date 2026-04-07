@@ -34,7 +34,7 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
         setTimeout(() => { generateMission(difficulty); }, 2500); 
     };
 
-    const fetchGlobalEnigma = async (difficulty) => {
+    const fetchGlobalEnigma = async (difficulty, snippetLength) => {
         try {
             const type = Math.random() > 0.5 ? 'manga' : 'anime';
             const randomPage = Math.floor(Math.random() * 4) + 1; 
@@ -47,7 +47,6 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
             if(!itemApi || !itemApi.title || !itemApi.synopsis) return null;
             
             let cleanSynopsis = itemApi.synopsis.split('[')[0].trim(); 
-            let snippetLength = difficulty.includes('S') ? 120 : (difficulty.includes('A') || difficulty.includes('B') ? 250 : 500);
             let shortSynopsis = cleanSynopsis.substring(0, snippetLength) + "...";
             let translatedSynopsis = await translateToPtBr(shortSynopsis);
             
@@ -61,7 +60,7 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
             if(itemApi.titles) itemApi.titles.forEach(t => acceptedAnswers.add(t.title.toLowerCase().trim()));
 
             return { 
-                q: `[SINAL MULTIVERSAL INTERCEPTADO - ${type.toUpperCase()}]\n\nSinopse Parcial:\n"${translatedSynopsis}"\n\nGêneros: ${translatedGenres}\n\nQual é o nome da obra?`, 
+                q: `[SINAL MULTIVERSAL INTERCEPTADO - ${type.toUpperCase()}]\n\nFragmento:\n"${translatedSynopsis}"\n\nGêneros: ${translatedGenres}\n\nQual é o nome da obra?`, 
                 a: Array.from(acceptedAnswers), 
                 rawId: itemApi.mal_id 
             };
@@ -72,58 +71,58 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
         try {
             const now = Date.now();
             let completed = userProfileData.completedMissions || [];
-            let missionType = [0, 1, 2][Math.floor(Math.random() * 3)];
             let newMission = null;
 
             const rankConfigs = {
-                'Rank E': { rxp: 30, rcoin: 15, pxp: 15, pcoin: 10, enigmaTries: 3, enigmaTimeMin: 15, readTimePerCapMin: 60 },
-                'Rank C': { rxp: 100, rcoin: 50, pxp: 50, pcoin: 25, enigmaTries: 3, enigmaTimeMin: 10, readTimePerCapMin: 50 },
-                'Rank B': { rxp: 150, rcoin: 80, pxp: 80, pcoin: 40, enigmaTries: 2, enigmaTimeMin: 8,  readTimePerCapMin: 45 },
-                'Rank A': { rxp: 300, rcoin: 150, pxp: 150, pcoin: 80, enigmaTries: 2, enigmaTimeMin: 5,  readTimePerCapMin: 40 },
-                'Rank S': { rxp: 800, rcoin: 400, pxp: 400, pcoin: 200, enigmaTries: 1, enigmaTimeMin: 3,  readTimePerCapMin: 30 },
-                'Rank SSS':{ rxp: 2000, rcoin: 1000, pxp: 1000, pcoin: 500, enigmaTries: 1, enigmaTimeMin: 1,  readTimePerCapMin: 20 }
+                'Rank E': { rxp: 30, rcoin: 15, pxp: 15, pcoin: 10, enigmaTries: 3, enigmaTimeMin: 15, charLimit: 350 },
+                'Rank C': { rxp: 100, rcoin: 50, pxp: 50, pcoin: 25, enigmaTries: 3, enigmaTimeMin: 10, charLimit: 250 },
+                'Rank B': { rxp: 150, rcoin: 80, pxp: 80, pcoin: 40, enigmaTries: 2, enigmaTimeMin: 8, charLimit: 150 },
+                'Rank A': { rxp: 300, rcoin: 150, pxp: 150, pcoin: 80, enigmaTries: 2, enigmaTimeMin: 5, charLimit: 100 },
+                'Rank S': { rxp: 800, rcoin: 400, pxp: 400, pcoin: 200, enigmaTries: 1, enigmaTimeMin: 3, charLimit: 80 },
+                'Rank SSS':{ rxp: 2000, rcoin: 1000, pxp: 1000, pcoin: 500, enigmaTries: 1, enigmaTimeMin: 1, charLimit: 50 }
             };
             const conf = rankConfigs[difficulty];
 
-            // Tenta criar Missão Tipo 2 (API Global)
-            if (missionType === 2) {
-                const apiEnigma = await fetchGlobalEnigma(difficulty);
-                if (apiEnigma) {
-                    newMission = { id: Date.now().toString(), type: 'enigma', difficulty, title: "Multiverso Global", question: apiEnigma.q, answer: apiEnigma.a, attemptsLeft: conf.enigmaTries, rewardXp: conf.rxp, rewardCoins: conf.rcoin, penaltyXp: conf.pxp, penaltyCoins: conf.pcoin, deadline: now + (conf.enigmaTimeMin * 60 * 1000) };
-                    completed.push("api_" + apiEnigma.rawId);
-                } else {
-                    missionType = 1; // Fallback se a API falhar
+            // Sorteio inicial: 70% de chance de ser Enigma, 30% de Leitura
+            const isEnigma = Math.random() < 0.7;
+
+            if (isEnigma) {
+                // EXATAMENTE 50% de chance para API e 50% para Banco de Dados
+                const useAPI = Math.random() < 0.5;
+
+                if (useAPI) {
+                    const apiEnigma = await fetchGlobalEnigma(difficulty, conf.charLimit);
+                    if (apiEnigma) {
+                        newMission = { id: Date.now().toString(), type: 'enigma', difficulty, title: "Multiverso Global", question: apiEnigma.q, answer: apiEnigma.a, attemptsLeft: conf.enigmaTries, rewardXp: conf.rxp, rewardCoins: conf.rcoin, penaltyXp: conf.pxp, penaltyCoins: conf.pcoin, deadline: now + (conf.enigmaTimeMin * 60 * 1000) };
+                        completed.push("api_" + apiEnigma.rawId);
+                    }
+                } 
+                
+                // Se caiu nos 50% do Banco, OU se a API falhou e retornou nulo
+                if (!newMission) { 
+                    let validLocalMangas = mangas.filter(item => !completed.includes("enigma_local_" + item.id) && item.synopsis && item.synopsis.length > 30);
+                    if(validLocalMangas.length > 0) { 
+                        const randomManga = validLocalMangas[Math.floor(Math.random() * validLocalMangas.length)];
+                        
+                        // CENSURA O TÍTULO PARA NÃO FICAR FÁCIL
+                        let cleanDesc = randomManga.synopsis.replace(/<[^>]*>?/gm, '').replace(new RegExp(randomManga.title, 'gi'), '█████');
+                        
+                        // CORTA O TEXTO DE ACORDO COM A DIFICULDADE (Fica mais difícil nos Ranks altos)
+                        let q = `[ARQUIVO DE BANCO DE DADOS LOCAL]\n\nFragmento:\n"${cleanDesc.substring(0, conf.charLimit)}..."\n\nQue obra é essa? Vá até a página dela para concluir o contrato.`;
+                        
+                        newMission = { id: Date.now().toString(), type: 'search_local', difficulty, title: "Caçada Infinity", question: q, targetManga: randomManga.id, targetTitle: randomManga.title, rewardXp: conf.rxp, rewardCoins: conf.rcoin, penaltyXp: conf.pxp, penaltyCoins: conf.pcoin, deadline: now + (conf.enigmaTimeMin * 60 * 1000) };
+                        completed.push("enigma_local_" + randomManga.id);
+                    }
                 }
             }
 
-            // Tenta criar Missão Tipo 1 (Enigma Local do Banco de Dados)
-            if (missionType === 1 && !newMission) { 
-                let validLocalMangas = mangas.filter(item => !completed.includes("enigma_local_" + item.id) && item.synopsis && item.synopsis.length > 50);
-                if(validLocalMangas.length > 0) { 
-                    const randomManga = validLocalMangas[Math.floor(Math.random() * validLocalMangas.length)];
-                    // Retirado o limitador curto! Agora pega uma sinopse grande e censura o título com █████
-                    let cleanDesc = randomManga.synopsis.replace(/<[^>]*>?/gm, '').replace(new RegExp(randomManga.title, 'gi'), '█████');
-                    let snippetLength = difficulty.includes('S') ? 150 : 350; // Textos muito maiores
-                    let q = `[ARQUIVO DE BANCO DE DADOS LOCAL]\n\nSinopse:\n"${cleanDesc.substring(0, snippetLength)}..."\n\nQue obra é essa? Vá até a página dela para concluir o contrato.`;
-                    
-                    newMission = { id: Date.now().toString(), type: 'search_local', difficulty, title: "Caçada Infinity", question: q, targetManga: randomManga.id, targetTitle: randomManga.title, rewardXp: conf.rxp, rewardCoins: conf.rcoin, penaltyXp: conf.pxp, penaltyCoins: conf.pcoin, deadline: now + (conf.enigmaTimeMin * 60 * 1000) };
-                    completed.push("enigma_local_" + randomManga.id);
-                } else {
-                    missionType = 0; // Fallback se não tiver obras suficientes com sinopse
-                }
-            } 
-            
-            // Tenta criar Missão Tipo 0 (Leitura Pura)
-            if (missionType === 0 && !newMission) {
-                let availableMangas = mangas.filter(item => !completed.includes("read_" + item.id));
-                if(availableMangas.length === 0) availableMangas = mangas; 
-                if (availableMangas.length > 0) {
-                    const randomManga = availableMangas[Math.floor(Math.random() * availableMangas.length)];
-                    const totalCaps = randomManga.chapters ? randomManga.chapters.length : 1;
-                    let readTarget = difficulty === 'Rank E' ? 1 : difficulty === 'Rank C' ? Math.min(totalCaps, Math.floor(Math.random() * 3) + 2) : difficulty === 'Rank B' ? Math.min(totalCaps, Math.floor(Math.random() * 5) + 5) : difficulty === 'Rank A' ? Math.min(totalCaps, Math.floor(Math.random() * 10) + 10) : difficulty === 'Rank S' ? Math.min(totalCaps, Math.floor(Math.random() * 20) + 20) : totalCaps; 
-                    newMission = { id: Date.now().toString(), type: 'read', difficulty, title: `Missão de Leitura`, desc: difficulty === 'Rank SSS' ? `Leia TODOS OS CAPÍTULOS da obra "${randomManga.title}".` : `Leia ${readTarget} capítulo(s) da obra "${randomManga.title}".`, targetManga: randomManga.id, targetCount: readTarget, currentCount: 0, rewardXp: conf.rxp, rewardCoins: conf.rcoin, penaltyXp: conf.pxp, penaltyCoins: conf.pcoin, deadline: now + (readTarget * conf.readTimePerCapMin * 60 * 1000) };
-                    completed.push("read_" + randomManga.id); 
-                }
+            // Se for missão de leitura, ou se os enigmas acima falharam por falta de dados
+            if (!newMission) {
+                 const randomManga = mangas[Math.floor(Math.random() * mangas.length)];
+                 let readTarget = difficulty === 'Rank E' ? 1 : difficulty === 'Rank C' ? 2 : difficulty === 'Rank B' ? 3 : difficulty === 'Rank A' ? 5 : difficulty === 'Rank S' ? 10 : 20;
+                 if(randomManga.chapters && randomManga.chapters.length < readTarget) readTarget = randomManga.chapters.length || 1;
+
+                 newMission = { id: Date.now().toString(), type: 'read', difficulty, title: `Missão de Leitura`, desc: `Leia ${readTarget} capítulo(s) da obra "${randomManga.title}".`, targetManga: randomManga.id, targetCount: readTarget, currentCount: 0, rewardXp: conf.rxp, rewardCoins: conf.rcoin, penaltyXp: conf.pxp, penaltyCoins: conf.pcoin, deadline: now + (readTarget * 45 * 60 * 1000) };
             }
 
             await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'main'), { activeMission: newMission, completedMissions: completed });
