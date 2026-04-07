@@ -22,7 +22,6 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
     const fetchRanking = async () => {
         setLoadingRank(true);
         try {
-            // Busca dados sem limite do firebase e organiza via JS para evitar bug de indice no celular
             const snap = await getDocs(collectionGroup(db, 'profile'));
             let rankData = [];
             snap.forEach(doc => {
@@ -358,9 +357,7 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
                             </div>
                         ) : (
                             <div className="relative z-10">
-                                {/* PÓDIO (TOP 3) */}
                                 <div className="flex justify-center items-end gap-2 sm:gap-6 mb-12 mt-4 px-2">
-                                    {/* 2º Lugar */}
                                     {rankingList[1] && (
                                         <div className="flex flex-col items-center animate-in slide-in-from-bottom-10 duration-700 delay-100">
                                             <div className="text-[10px] text-gray-300 font-black mb-2 uppercase tracking-widest bg-gray-600/20 px-2 py-0.5 rounded border border-gray-500/50">Prata</div>
@@ -373,7 +370,6 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
                                             </div>
                                         </div>
                                     )}
-                                    {/* 1º Lugar */}
                                     {rankingList[0] && (
                                         <div className="flex flex-col items-center animate-in slide-in-from-bottom-16 duration-700 z-10">
                                             <Crown className="w-8 h-8 text-yellow-400 mb-1 drop-shadow-[0_0_15px_rgba(250,204,21,0.8)] animate-[float-inf_3s_ease-in-out_infinite]"/>
@@ -386,7 +382,6 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
                                             </div>
                                         </div>
                                     )}
-                                    {/* 3º Lugar */}
                                     {rankingList[2] && (
                                         <div className="flex flex-col items-center animate-in slide-in-from-bottom-8 duration-700 delay-200">
                                             <div className="text-[10px] text-amber-600 font-black mb-2 uppercase tracking-widest bg-amber-900/20 px-2 py-0.5 rounded border border-amber-700/50">Bronze</div>
@@ -401,7 +396,6 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
                                     )}
                                 </div>
 
-                                {/* LISTA DO RESTO DOS JOGADORES */}
                                 <div className="space-y-2 mt-4 bg-[#050508]/50 p-3 sm:p-5 rounded-xl border border-white/5">
                                     {rankingList.slice(3).map((p, index) => (
                                         <div key={p.id} className="flex items-center gap-3 sm:gap-4 p-3 bg-[#0d0d12] hover:bg-white/5 border border-white/5 hover:border-cyan-500/30 rounded-lg transition-colors duration-300 group">
