@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Compass, History, Library, Smartphone, Moon, Sun, Camera, Edit3, LogOut, Loader2, UserCircle, BookOpen } from 'lucide-react';
+import { Compass, History, Library, Smartphone, Moon, Sun, Camera, Edit3, LogOut, Loader2, UserCircle, BookOpen, Trash2, RefreshCw } from 'lucide-react';
 import { updateProfile } from "firebase/auth";
-import { doc, setDoc } from "firebase/firestore";
+import { doc, setDoc, deleteDoc } from "firebase/firestore";
 import { auth, db } from './firebase';
 import { APP_ID } from './constants';
 import { compressImage, getLevelRequirement, getLevelTitle } from './helpers';
@@ -39,8 +39,28 @@ export function ProfileView({ user, userProfileData, historyData, libraryData, d
       const docData = { coverUrl: coverBase64, avatarUrl: avatarBase64, bio: bio };
       await setDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'profile', 'main'), docData, { merge: true });
       onUpdateData(docData);
-      showToast('Perfil salvo com sucesso!', 'success'); setIsEditing(false);
-    } catch (error) { showToast(`Erro: Falha na conexão.`, 'error'); } finally { setLoading(false); }
+      showToast('Registro salvo no Abismo!', 'success'); setIsEditing(false);
+    } catch (error) { showToast(`Erro ao gravar.`, 'error'); } finally { setLoading(false); }
+  };
+
+  // Funções Novas: Limpar Histórico e Cache
+  const clearHistory = async () => {
+      if(window.confirm("Deseja apagar todos os registros do seu histórico? Esta ação é irreversível.")) {
+          try {
+              historyData.forEach(async (h) => {
+                  await deleteDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'history', h.id));
+              });
+              showToast("Histórico apagado do Vazio.", "success");
+          } catch(e) { showToast("Erro ao apagar histórico.", "error"); }
+      }
+  };
+
+  const clearCache = () => {
+      if(window.confirm("Isso irá recarregar o sistema e limpar arquivos temporários. Continuar?")) {
+          localStorage.clear();
+          sessionStorage.clear();
+          window.location.reload(true);
+      }
   };
 
   const level = userProfileData.level || 1;
@@ -92,18 +112,18 @@ export function ProfileView({ user, userProfileData, historyData, libraryData, d
         {isEditing ? (
           <form onSubmit={handleSave} className="bg-[#0d0d12]/50 border border-white/10 rounded-xl p-6 animate-in slide-in-from-bottom-4 shadow-xl">
             <div className="space-y-4">
-              <input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full bg-[#050508] border border-white/10 rounded-md px-4 py-3 text-white text-sm font-bold outline-none focus:border-cyan-500 transition-colors duration-300" placeholder="Seu Nome"/>
-              <textarea value={bio} onChange={e => setBio(e.target.value)} rows={4} className="w-full bg-[#050508] border border-white/10 rounded-md px-4 py-3 text-white text-sm resize-none outline-none focus:border-cyan-500 transition-colors duration-300" placeholder="Biografia ou frase de efeito..."></textarea>
+              <input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full bg-[#050508] border border-white/10 rounded-md px-4 py-3 text-white text-sm font-bold outline-none focus:border-cyan-500 transition-colors duration-300" placeholder="Sua Identidade"/>
+              <textarea value={bio} onChange={e => setBio(e.target.value)} rows={4} className="w-full bg-[#050508] border border-white/10 rounded-md px-4 py-3 text-white text-sm resize-none outline-none focus:border-cyan-500 transition-colors duration-300" placeholder="Gravura ou pensamento..."></textarea>
             </div>
-            <button type="submit" disabled={loading} className="mt-5 bg-gradient-to-r from-cyan-600 to-fuchsia-600 text-white text-sm font-black px-8 py-3 rounded-md w-full flex justify-center hover:scale-[1.02] transition-transform duration-300 shadow-md">{loading ? <Loader2 className="w-5 h-5 animate-spin"/> : 'Salvar Informações'}</button>
+            <button type="submit" disabled={loading} className="mt-5 bg-gradient-to-r from-cyan-600 to-fuchsia-600 text-white text-sm font-black px-8 py-3 rounded-md w-full flex justify-center hover:scale-[1.02] transition-transform duration-300 shadow-md">{loading ? <Loader2 className="w-5 h-5 animate-spin"/> : 'Salvar Registro'}</button>
           </form>
         ) : (
           <div>
             <div className="flex gap-3 border-b border-white/10 mb-6 overflow-x-auto scrollbar-hide pb-2">
-              <button onClick={() => setActiveTab("Estatisticas")} className={`px-4 py-2 rounded-md font-bold transition-all whitespace-nowrap text-sm duration-300 flex items-center gap-2 ${activeTab === "Estatisticas" ? 'bg-[#0d0d12] text-white border border-white/10' : 'text-gray-400/80 hover:text-white border border-transparent'}`}><Compass className="w-4 h-4"/> Estatísticas</button>
-              <button onClick={() => setActiveTab("Historico")} className={`px-4 py-2 rounded-md font-bold transition-all whitespace-nowrap text-sm duration-300 flex items-center gap-2 ${activeTab === "Historico" ? 'bg-[#0d0d12] text-white border border-white/10' : 'text-gray-400/80 hover:text-white border border-transparent'}`}><History className="w-4 h-4"/> Histórico</button>
-              <button onClick={() => setActiveTab("Biblioteca")} className={`px-4 py-2 rounded-md font-bold transition-all whitespace-nowrap text-sm duration-300 flex items-center gap-2 ${activeTab === "Biblioteca" ? 'bg-[#0d0d12] text-white border border-white/10' : 'text-gray-400/80 hover:text-white border border-transparent'}`}><Library className="w-4 h-4"/> Lista Lida</button>
-              <button onClick={() => setActiveTab("Configuracoes")} className={`px-4 py-2 rounded-md font-bold transition-all whitespace-nowrap text-sm duration-300 flex items-center gap-2 ${activeTab === "Configuracoes" ? 'bg-[#0d0d12] text-white border border-white/10' : 'text-gray-400/80 hover:text-white border border-transparent'}`}><Smartphone className="w-4 h-4"/> Confs</button>
+              <button onClick={() => setActiveTab("Estatisticas")} className={`px-4 py-2 rounded-md font-bold transition-all whitespace-nowrap text-sm duration-300 flex items-center gap-2 ${activeTab === "Estatisticas" ? 'bg-[#0d0d12] text-white border border-white/10' : 'text-gray-400/80 hover:text-white border border-transparent'}`}><Compass className="w-4 h-4"/> Dados do Abismo</button>
+              <button onClick={() => setActiveTab("Historico")} className={`px-4 py-2 rounded-md font-bold transition-all whitespace-nowrap text-sm duration-300 flex items-center gap-2 ${activeTab === "Historico" ? 'bg-[#0d0d12] text-white border border-white/10' : 'text-gray-400/80 hover:text-white border border-transparent'}`}><History className="w-4 h-4"/> Rastro</button>
+              <button onClick={() => setActiveTab("Biblioteca")} className={`px-4 py-2 rounded-md font-bold transition-all whitespace-nowrap text-sm duration-300 flex items-center gap-2 ${activeTab === "Biblioteca" ? 'bg-[#0d0d12] text-white border border-white/10' : 'text-gray-400/80 hover:text-white border border-transparent'}`}><Library className="w-4 h-4"/> Coleção</button>
+              <button onClick={() => setActiveTab("Configuracoes")} className={`px-4 py-2 rounded-md font-bold transition-all whitespace-nowrap text-sm duration-300 flex items-center gap-2 ${activeTab === "Configuracoes" ? 'bg-[#0d0d12] text-white border border-white/10' : 'text-gray-400/80 hover:text-white border border-transparent'}`}><Smartphone className="w-4 h-4"/> Sistema</button>
             </div>
             
             {activeTab === "Estatisticas" && (
@@ -120,7 +140,7 @@ export function ProfileView({ user, userProfileData, historyData, libraryData, d
             {activeTab === "Historico" && (
                 <div className="animate-in fade-in duration-300">
                     {historyData.length === 0 ? (
-                        <div className="text-center py-10 bg-[#0d0d12] rounded-xl border border-white/10"><History className="w-10 h-10 mx-auto text-gray-400/60 mb-2"/><p className="text-gray-400/60 font-bold text-sm">Seu histórico de leitura está vazio.</p></div>
+                        <div className="text-center py-10 bg-[#0d0d12] rounded-xl border border-white/10"><History className="w-10 h-10 mx-auto text-gray-400/60 mb-2"/><p className="text-gray-400/60 font-bold text-sm">Nenhum rastro detectado no Vazio.</p></div>
                     ) : (
                        <div className="flex flex-col gap-3">
                           {historyData.slice(0, 15).map(hist => {
@@ -141,7 +161,7 @@ export function ProfileView({ user, userProfileData, historyData, libraryData, d
             {activeTab === "Biblioteca" && (
                 <div className="animate-in fade-in duration-300">
                     {libraryMangas.length === 0 ? (
-                        <div className="text-center py-10 bg-[#0d0d12] rounded-xl border border-white/10"><Library className="w-10 h-10 mx-auto text-gray-400/60 mb-2"/><p className="text-gray-400/60 font-bold text-sm">Sua biblioteca está vazia.</p></div>
+                        <div className="text-center py-10 bg-[#0d0d12] rounded-xl border border-white/10"><Library className="w-10 h-10 mx-auto text-gray-400/60 mb-2"/><p className="text-gray-400/60 font-bold text-sm">Nenhuma obra na sua coleção.</p></div>
                     ) : (
                        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
                            {libraryMangas.map(manga => {
@@ -168,7 +188,7 @@ export function ProfileView({ user, userProfileData, historyData, libraryData, d
             {activeTab === "Configuracoes" && (
               <div className="space-y-4 animate-in fade-in duration-300">
                 <div className="bg-[#0d0d12] border border-white/10 rounded-xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                  <h4 className="font-bold text-white flex items-center gap-2 text-sm">{userSettings.theme === 'OLED' ? <Moon className="w-5 h-5 text-gray-500"/> : <Sun className="w-5 h-5 text-yellow-500"/>} Tema do Site</h4>
+                  <h4 className="font-bold text-white flex items-center gap-2 text-sm">{userSettings.theme === 'OLED' ? <Moon className="w-5 h-5 text-gray-500"/> : <Sun className="w-5 h-5 text-yellow-500"/>} Matriz Visual</h4>
                   <div className="flex bg-[#050508] border border-white/10 rounded-md p-1 w-full sm:w-auto">
                     <button onClick={() => updateSettings({ theme: 'Escuro' })} className={`flex-1 px-4 py-2 rounded text-xs font-bold transition-all duration-300 ${userSettings.theme === 'Escuro' || !userSettings.theme ? 'bg-[#0d0d12] text-white shadow-sm' : 'text-gray-400/60 hover:text-white'}`}>Escuro</button>
                     <button onClick={() => updateSettings({ theme: 'OLED' })} className={`flex-1 px-4 py-2 rounded text-xs font-bold transition-all duration-300 ${userSettings.theme === 'OLED' ? 'bg-black text-white shadow-sm' : 'text-gray-400/60 hover:text-white'}`}>OLED</button>
@@ -177,19 +197,20 @@ export function ProfileView({ user, userProfileData, historyData, libraryData, d
                 </div>
 
                 <div className="bg-[#0d0d12] border border-white/10 rounded-xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                  <h4 className="font-bold text-white flex items-center gap-2 text-sm"><BookOpen className="w-5 h-5 text-cyan-400"/> Formato de Leitura</h4>
+                  <h4 className="font-bold text-white flex items-center gap-2 text-sm"><BookOpen className="w-5 h-5 text-cyan-400"/> Sistema de Leitura</h4>
                   <div className="flex bg-[#050508] border border-white/10 rounded-md p-1 w-full sm:w-auto">
                     <button onClick={() => updateSettings({ readMode: 'Cascata' })} className={`flex-1 px-4 py-2 rounded text-xs font-bold transition-all duration-300 ${userSettings.readMode === 'Cascata' ? 'bg-[#0d0d12] text-white shadow-sm' : 'text-gray-400/60 hover:text-white'}`}>Cascata</button>
                     <button onClick={() => updateSettings({ readMode: 'Páginas' })} className={`flex-1 px-4 py-2 rounded text-xs font-bold transition-all duration-300 ${userSettings.readMode === 'Páginas' ? 'bg-[#0d0d12] text-white shadow-sm' : 'text-gray-400/60 hover:text-white'}`}>Páginas</button>
                   </div>
                 </div>
 
-                <div className="bg-[#0d0d12] border border-white/10 rounded-xl p-4 flex justify-between items-center">
-                  <div>
-                      <h4 className="font-bold text-white flex items-center gap-2 text-sm"><Smartphone className="w-5 h-5 text-blue-500"/> Economia de Dados</h4>
-                      <p className="text-xs text-gray-400/60 mt-1">Borra imagens para economizar</p>
-                  </div>
-                  <button onClick={() => updateSettings({ dataSaver: !userSettings.dataSaver })} className={`w-12 h-6 rounded-full relative transition-colors duration-300 shadow-inner ${userSettings.dataSaver ? 'bg-cyan-500' : 'bg-[#050508] border border-white/10'}`}><div className={`w-4 h-4 bg-white rounded-full absolute top-[3px] transition-all duration-300 shadow ${userSettings.dataSaver ? 'left-7' : 'left-1'}`}></div></button>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+                    <button onClick={clearHistory} className="bg-[#050508] border border-white/10 hover:border-red-500/50 hover:bg-red-500/10 text-gray-300 hover:text-red-400 font-bold p-4 rounded-xl flex items-center justify-center gap-2 transition-colors duration-300 text-sm">
+                        <Trash2 className="w-5 h-5" /> Apagar Histórico
+                    </button>
+                    <button onClick={clearCache} className="bg-[#050508] border border-white/10 hover:border-cyan-500/50 hover:bg-cyan-500/10 text-gray-300 hover:text-cyan-400 font-bold p-4 rounded-xl flex items-center justify-center gap-2 transition-colors duration-300 text-sm">
+                        <RefreshCw className="w-5 h-5" /> Limpar Cache do Sistema
+                    </button>
                 </div>
               </div>
             )}
@@ -198,4 +219,4 @@ export function ProfileView({ user, userProfileData, historyData, libraryData, d
       </div>
     </div>
   );
-}
+    }
