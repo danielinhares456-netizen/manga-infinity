@@ -46,13 +46,13 @@ export function LoginView({ onLoginSuccess, onGuestAccess }) {
           
           <div className="text-center mb-10 relative z-10">
             
-            {/* NOVO ÍCONE DA TELA DE LOGIN */}
-            <div className="relative flex items-center justify-center w-20 h-20 mx-auto mb-6">
+            {/* NEW DIGNIFIED BOOK ICON LOGO ON LOGIN */}
+            <div className="relative flex items-center justify-center w-24 h-24 mx-auto mb-6">
                <div className="absolute inset-0 bg-gradient-to-tr from-blue-600 to-red-600 rounded-full blur-xl opacity-30 animate-pulse"></div>
-               <Hexagon className="absolute inset-[-20%] w-[140%] h-[140%] text-blue-500/40 animate-[spin_10s_linear_infinite]" strokeWidth={1} />
+               <Hexagon className="absolute inset-[-10%] w-[120%] h-[120%] text-blue-500/40 animate-[spin_10s_linear_infinite]" strokeWidth={1} />
                <Hexagon className="absolute inset-0 w-full h-full text-red-500/40 animate-[spin_7s_linear_infinite_reverse]" strokeWidth={1} />
-               <BookOpen className="w-10 h-10 text-amber-500 drop-shadow-[0_0_15px_rgba(245,158,11,0.8)] relative z-10" />
-               <Eye className="w-4 h-4 text-red-500 absolute z-20 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+               <BookOpen className="w-12 h-12 text-amber-500 drop-shadow-[0_0_15px_rgba(245,158,11,0.8)] relative z-10" />
+               <Eye className="w-5 h-5 text-red-500 absolute z-20 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 drop-shadow-[0_0_10px_rgba(239,68,68,0.8)]" />
             </div>
 
             <h2 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white via-blue-50 to-blue-700 tracking-tight">
