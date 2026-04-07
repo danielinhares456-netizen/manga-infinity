@@ -3,7 +3,6 @@ import { Target, Hexagon, ShoppingCart, ShieldAlert, Key, Check, Compass, Timer,
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from './firebase';
 import { translateToPtBr, addXpLogic, removeXpLogic, getRarityColor } from './helpers';
-import { MULTIVERSO_ENIGMAS } from './constants';
 
 export function NexoView({ user, userProfileData, showToast, mangas, db, appId, onNavigate, onLevelUp, synthesizeCrystal, shopItems, buyItem, equipItem }) {
     const [activeTab, setActiveTab] = useState("Missões");
@@ -37,39 +36,29 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
 
     const fetchGlobalEnigma = async (difficulty) => {
         try {
-            // AJUSTE: Filtra apenas TOP OBRAS (Evita obras obscuras com sinopses ruins)
             const type = Math.random() > 0.5 ? 'manga' : 'anime';
-            // Pega uma página aleatória entre as primeiras do Top (limit=25)
             const randomPage = Math.floor(Math.random() * 4) + 1; 
             const res = await fetch(`https://api.jikan.moe/v4/top/${type}?limit=25&page=${randomPage}`);
-            
             const data = await res.json();
             const topList = data.data;
             if(!topList || topList.length === 0) return null;
 
-            // Seleciona uma obra aleatória da lista do Top
             const itemApi = topList[Math.floor(Math.random() * topList.length)];
-
             if(!itemApi || !itemApi.title || !itemApi.synopsis) return null;
             
-            let cleanSynopsis = itemApi.synopsis.split('[')[0].trim(); // Remove avisos da API no fim
-            
-            let snippetLength = difficulty.includes('S') ? 100 : (difficulty.includes('A') || difficulty.includes('B') ? 200 : 400);
+            let cleanSynopsis = itemApi.synopsis.split('[')[0].trim(); 
+            let snippetLength = difficulty.includes('S') ? 120 : (difficulty.includes('A') || difficulty.includes('B') ? 250 : 500);
             let shortSynopsis = cleanSynopsis.substring(0, snippetLength) + "...";
-            
             let translatedSynopsis = await translateToPtBr(shortSynopsis);
             
             let genres = itemApi.genres && itemApi.genres.length > 0 ? itemApi.genres.map(g => g.name).slice(0, 3).join(', ') : "Desconhecidos";
             let translatedGenres = await translateToPtBr(genres);
             
-            // Coleta todas as variações de título possíveis para a resposta
             const acceptedAnswers = new Set();
             if(itemApi.title) acceptedAnswers.add(itemApi.title.toLowerCase().trim());
             if(itemApi.title_english) acceptedAnswers.add(itemApi.title_english.toLowerCase().trim());
             if(itemApi.title_japanese) acceptedAnswers.add(itemApi.title_japanese.toLowerCase().trim());
-            if(itemApi.titles) {
-                itemApi.titles.forEach(t => acceptedAnswers.add(t.title.toLowerCase().trim()));
-            }
+            if(itemApi.titles) itemApi.titles.forEach(t => acceptedAnswers.add(t.title.toLowerCase().trim()));
 
             return { 
                 q: `[SINAL MULTIVERSAL INTERCEPTADO - ${type.toUpperCase()}]\n\nSinopse Parcial:\n"${translatedSynopsis}"\n\nGêneros: ${translatedGenres}\n\nQual é o nome da obra?`, 
@@ -95,21 +84,37 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
                 'Rank SSS':{ rxp: 2000, rcoin: 1000, pxp: 1000, pcoin: 500, enigmaTries: 1, enigmaTimeMin: 1,  readTimePerCapMin: 20 }
             };
             const conf = rankConfigs[difficulty];
-            if (mangas.length === 0 && missionType !== 2) missionType = 2; 
 
-            if (missionType === 1) { 
-                let validLocalMangas = mangas.filter(item => !completed.includes("enigma_local_" + item.id) && (item.synopsis || (item.genres && item.genres.length > 0)));
-                if(validLocalMangas.length === 0) missionType = 2; 
-                if (missionType === 1) { 
+            // Tenta criar Missão Tipo 2 (API Global)
+            if (missionType === 2) {
+                const apiEnigma = await fetchGlobalEnigma(difficulty);
+                if (apiEnigma) {
+                    newMission = { id: Date.now().toString(), type: 'enigma', difficulty, title: "Multiverso Global", question: apiEnigma.q, answer: apiEnigma.a, attemptsLeft: conf.enigmaTries, rewardXp: conf.rxp, rewardCoins: conf.rcoin, penaltyXp: conf.pxp, penaltyCoins: conf.pcoin, deadline: now + (conf.enigmaTimeMin * 60 * 1000) };
+                    completed.push("api_" + apiEnigma.rawId);
+                } else {
+                    missionType = 1; // Fallback se a API falhar
+                }
+            }
+
+            // Tenta criar Missão Tipo 1 (Enigma Local do Banco de Dados)
+            if (missionType === 1 && !newMission) { 
+                let validLocalMangas = mangas.filter(item => !completed.includes("enigma_local_" + item.id) && item.synopsis && item.synopsis.length > 50);
+                if(validLocalMangas.length > 0) { 
                     const randomManga = validLocalMangas[Math.floor(Math.random() * validLocalMangas.length)];
-                    let cleanDesc = randomManga.synopsis ? randomManga.synopsis.replace(/<[^>]*>?/gm, '').replace(new RegExp(randomManga.title, 'gi'), '___') : '';
-                    let q = cleanDesc.length > 20 ? `[ARQUIVO OCULTO]\n\nSinopse:\n"${cleanDesc.substring(0, difficulty.includes('S') ? 80 : 160)}..."` : `[ARQUIVO OCULTO]\n\nGêneros: ${randomManga.genres.join(', ')}\nAutor: ${randomManga.author || 'Desconhecido'}`;
+                    // Retirado o limitador curto! Agora pega uma sinopse grande e censura o título com █████
+                    let cleanDesc = randomManga.synopsis.replace(/<[^>]*>?/gm, '').replace(new RegExp(randomManga.title, 'gi'), '█████');
+                    let snippetLength = difficulty.includes('S') ? 150 : 350; // Textos muito maiores
+                    let q = `[ARQUIVO DE BANCO DE DADOS LOCAL]\n\nSinopse:\n"${cleanDesc.substring(0, snippetLength)}..."\n\nQue obra é essa? Vá até a página dela para concluir o contrato.`;
+                    
                     newMission = { id: Date.now().toString(), type: 'search_local', difficulty, title: "Caçada Infinity", question: q, targetManga: randomManga.id, targetTitle: randomManga.title, rewardXp: conf.rxp, rewardCoins: conf.rcoin, penaltyXp: conf.pxp, penaltyCoins: conf.pcoin, deadline: now + (conf.enigmaTimeMin * 60 * 1000) };
                     completed.push("enigma_local_" + randomManga.id);
+                } else {
+                    missionType = 0; // Fallback se não tiver obras suficientes com sinopse
                 }
             } 
             
-            if (missionType === 0) {
+            // Tenta criar Missão Tipo 0 (Leitura Pura)
+            if (missionType === 0 && !newMission) {
                 let availableMangas = mangas.filter(item => !completed.includes("read_" + item.id));
                 if(availableMangas.length === 0) availableMangas = mangas; 
                 if (availableMangas.length > 0) {
@@ -118,25 +123,9 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
                     let readTarget = difficulty === 'Rank E' ? 1 : difficulty === 'Rank C' ? Math.min(totalCaps, Math.floor(Math.random() * 3) + 2) : difficulty === 'Rank B' ? Math.min(totalCaps, Math.floor(Math.random() * 5) + 5) : difficulty === 'Rank A' ? Math.min(totalCaps, Math.floor(Math.random() * 10) + 10) : difficulty === 'Rank S' ? Math.min(totalCaps, Math.floor(Math.random() * 20) + 20) : totalCaps; 
                     newMission = { id: Date.now().toString(), type: 'read', difficulty, title: `Missão de Leitura`, desc: difficulty === 'Rank SSS' ? `Leia TODOS OS CAPÍTULOS da obra "${randomManga.title}".` : `Leia ${readTarget} capítulo(s) da obra "${randomManga.title}".`, targetManga: randomManga.id, targetCount: readTarget, currentCount: 0, rewardXp: conf.rxp, rewardCoins: conf.rcoin, penaltyXp: conf.pxp, penaltyCoins: conf.pcoin, deadline: now + (readTarget * conf.readTimePerCapMin * 60 * 1000) };
                     completed.push("read_" + randomManga.id); 
-                } else { missionType = 2; }
+                }
             }
 
-            if (missionType === 2 || !newMission) {
-                if (Math.random() > 0.5) {
-                    const apiEnigma = await fetchGlobalEnigma(difficulty);
-                    if (apiEnigma) {
-                        newMission = { id: Date.now().toString(), type: 'enigma', difficulty, title: "Multiverso Global", question: apiEnigma.q, answer: apiEnigma.a, attemptsLeft: conf.enigmaTries, rewardXp: conf.rxp, rewardCoins: conf.rcoin, penaltyXp: conf.pxp, penaltyCoins: conf.pcoin, deadline: now + (conf.enigmaTimeMin * 60 * 1000) };
-                        completed.push("api_" + apiEnigma.rawId);
-                    }
-                }
-                if (!newMission) {
-                    let availableEnigmas = MULTIVERSO_ENIGMAS.filter(item => !completed.includes(item.q));
-                    if (availableEnigmas.length === 0) { completed = []; availableEnigmas = MULTIVERSO_ENIGMAS; }
-                    const enigmaData = availableEnigmas[Math.floor(Math.random() * availableEnigmas.length)];
-                    newMission = { id: Date.now().toString(), type: 'enigma', difficulty, title: "Arquivo Ancestral", question: enigmaData.q, answer: enigmaData.a, attemptsLeft: conf.enigmaTries, rewardXp: conf.rxp, rewardCoins: conf.rcoin, penaltyXp: conf.pxp, penaltyCoins: conf.pcoin, deadline: now + (conf.enigmaTimeMin * 60 * 1000) };
-                    completed.push(enigmaData.q); 
-                }
-            }
             await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'main'), { activeMission: newMission, completedMissions: completed });
             showToast(`Contrato Assinado!`, "success");
         } catch(e) { showToast("Falha na Fenda do Nexo.", "error"); } finally { setIsForgingMission(false); }
@@ -285,6 +274,7 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
                                     <div key={rank.id} className={`bg-[#0d0d12] border ${rank.border} ${rank.hover} transition-colors duration-300 p-4 rounded-xl flex flex-col group shadow-sm`}>
                                         <div className="flex justify-between items-center mb-3"><div className={`${rank.color} font-black text-xl group-hover:scale-105 transition-transform origin-left`}>{rank.id}</div><div className="text-xs font-bold text-gray-400/60 text-right">+{rank.rxp}XP | +{rank.rcoin}M</div></div>
                                         <div className="flex flex-col gap-1 mb-4 mt-2">
+                                            <div className="flex justify-between text-xs text-gray-400/60"><span className="flex items-center gap-1"><Target className="w-4 h-4"/> Sucesso Est.</span><span className="font-bold text-gray-300/80">{rank.success}</span></div>
                                             <div className="flex justify-between text-xs text-gray-400/60"><span className="flex items-center gap-1"><Clock className="w-4 h-4"/> Tempo Est.</span><span className="font-bold text-gray-300/80">{rank.time}</span></div>
                                         </div>
                                         <button onClick={() => setConfirmModal(rank.id)} className={`w-full ${rank.btn} text-white text-sm font-bold py-3 rounded-md transition-colors mt-auto flex items-center justify-center gap-2 duration-300`}>Assinar Contrato</button>
