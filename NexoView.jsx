@@ -2,16 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { Target, Hexagon, ShoppingCart, ShieldAlert, Trophy, Check, Compass, Timer, Star, Skull, Zap, Search, Sparkles, Clock, Crown, Medal } from 'lucide-react';
 import { doc, updateDoc, collectionGroup, query, orderBy, limit, getDocs } from "firebase/firestore";
 import { db } from './firebase';
-import { addXpLogic, removeXpLogic, getRarityColor, getLevelTitle } from './helpers';
+import { translateToPtBr, addXpLogic, removeXpLogic, getRarityColor, getLevelTitle } from './helpers';
 
 export function NexoView({ user, userProfileData, showToast, mangas, db, appId, onNavigate, onLevelUp, synthesizeCrystal, shopItems, buyItem, equipItem }) {
     const [activeTab, setActiveTab] = useState("Missões");
+    const [enigmaAnswer, setEnigmaAnswer] = useState("");
     const [timeLeft, setTimeLeft] = useState("");
     const [confirmModal, setConfirmModal] = useState(null); 
     const [isForgingMission, setIsForgingMission] = useState(false); 
     const [synthesizing, setSynthesizing] = useState(false);
     
-    // Estados do Ranking
     const [rankingList, setRankingList] = useState([]);
     const [loadingRank, setLoadingRank] = useState(false);
 
@@ -22,7 +22,6 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
     const fetchRanking = async () => {
         setLoadingRank(true);
         try {
-            // Requer criação de Índice no Firebase
             const q = query(collectionGroup(db, 'profile'), orderBy('level', 'desc'), orderBy('xp', 'desc'), limit(50));
             const snap = await getDocs(q);
             let rankData = [];
@@ -62,6 +61,41 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
         setTimeout(() => { generateMission(difficulty); }, 2500); 
     };
 
+    const fetchGlobalEnigma = async (difficulty, snippetLength) => {
+        try {
+            const type = Math.random() > 0.5 ? 'manga' : 'anime';
+            const randomPage = Math.floor(Math.random() * 4) + 1; 
+            const res = await fetch(`https://api.jikan.moe/v4/top/${type}?limit=25&page=${randomPage}`);
+            const data = await res.json();
+            const topList = data.data;
+            if(!topList || topList.length === 0) return null;
+
+            const itemApi = topList[Math.floor(Math.random() * topList.length)];
+            if(!itemApi || !itemApi.title || !itemApi.synopsis) return null;
+            
+            // LIMPANDO A SINOPSE GRINGA (Tira trechos de autoria)
+            let cleanSynopsis = itemApi.synopsis.replace(/\[Written by MAL Rewrite\]/g, '').split('Source:')[0].trim();
+            
+            let shortSynopsis = cleanSynopsis.substring(0, snippetLength) + "...";
+            let translatedSynopsis = await translateToPtBr(shortSynopsis);
+            
+            let genres = itemApi.genres && itemApi.genres.length > 0 ? itemApi.genres.map(g => g.name).slice(0, 3).join(', ') : "Desconhecidos";
+            let translatedGenres = await translateToPtBr(genres);
+            
+            const acceptedAnswers = new Set();
+            if(itemApi.title) acceptedAnswers.add(itemApi.title.toLowerCase().trim());
+            if(itemApi.title_english) acceptedAnswers.add(itemApi.title_english.toLowerCase().trim());
+            if(itemApi.title_japanese) acceptedAnswers.add(itemApi.title_japanese.toLowerCase().trim());
+            if(itemApi.titles) itemApi.titles.forEach(t => acceptedAnswers.add(t.title.toLowerCase().trim()));
+
+            return { 
+                q: `[SINAL MULTIVERSAL INTERCEPTADO]\n\nFragmento:\n"${translatedSynopsis}"\n\nGêneros: ${translatedGenres}\n\nQual é o nome da obra?`, 
+                a: Array.from(acceptedAnswers), 
+                rawId: itemApi.mal_id 
+            };
+        } catch(e) { return null; }
+    };
+
     const generateMission = async (difficulty) => {
         try {
             const now = Date.now();
@@ -69,46 +103,87 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
             let newMission = null;
 
             const rankConfigs = {
-                'Rank E': { rxp: 30, rcoin: 15, pxp: 15, pcoin: 10, time: 15, charLimit: 250 },
-                'Rank C': { rxp: 100, rcoin: 50, pxp: 50, pcoin: 25, time: 10, charLimit: 180 },
-                'Rank B': { rxp: 150, rcoin: 80, pxp: 80, pcoin: 40, time: 8, charLimit: 120 },
-                'Rank A': { rxp: 300, rcoin: 150, pxp: 150, pcoin: 80, time: 5, charLimit: 80 },
-                'Rank S': { rxp: 800, rcoin: 400, pxp: 400, pcoin: 200, time: 3, charLimit: 50 },
-                'Rank SSS':{ rxp: 2000, rcoin: 1000, pxp: 1000, pcoin: 500, time: 1, charLimit: 30 }
+                'Rank E': { rxp: 30, rcoin: 15, pxp: 15, pcoin: 10, enigmaTries: 3, enigmaTimeMin: 15, charLimit: 300 },
+                'Rank C': { rxp: 100, rcoin: 50, pxp: 50, pcoin: 25, enigmaTries: 3, enigmaTimeMin: 10, charLimit: 200 },
+                'Rank B': { rxp: 150, rcoin: 80, pxp: 80, pcoin: 40, enigmaTries: 2, enigmaTimeMin: 8, charLimit: 120 },
+                'Rank A': { rxp: 300, rcoin: 150, pxp: 150, pcoin: 80, enigmaTries: 2, enigmaTimeMin: 5, charLimit: 80 },
+                'Rank S': { rxp: 800, rcoin: 400, pxp: 400, pcoin: 200, enigmaTries: 1, enigmaTimeMin: 3, charLimit: 60 },
+                'Rank SSS':{ rxp: 2000, rcoin: 1000, pxp: 1000, pcoin: 500, enigmaTries: 1, enigmaTimeMin: 1, charLimit: 40 }
             };
             const conf = rankConfigs[difficulty];
 
-            // 50% de chance para Caçada no BD Local, 50% de chance para Leitura
-            const isHunt = Math.random() < 0.5;
+            // EXATAMENTE 50% de chance para API e 50% para Banco de Dados
+            const isAPI = Math.random() < 0.5;
 
-            if (isHunt) {
+            if (isAPI) {
+                const apiEnigma = await fetchGlobalEnigma(difficulty, conf.charLimit);
+                if (apiEnigma) {
+                    newMission = { id: Date.now().toString(), type: 'enigma', difficulty, title: "Multiverso Global", question: apiEnigma.q, answer: apiEnigma.a, attemptsLeft: conf.enigmaTries, rewardXp: conf.rxp, rewardCoins: conf.rcoin, penaltyXp: conf.pxp, penaltyCoins: conf.pcoin, deadline: now + (conf.enigmaTimeMin * 60 * 1000) };
+                    completed.push("api_" + apiEnigma.rawId);
+                }
+            } 
+            
+            // Se caiu Banco Local, ou se a API falhar
+            if (!newMission) { 
                 let validLocalMangas = mangas.filter(item => !completed.includes("enigma_local_" + item.id) && item.synopsis && item.synopsis.length > 50);
                 if(validLocalMangas.length > 0) { 
                     const randomManga = validLocalMangas[Math.floor(Math.random() * validLocalMangas.length)];
                     
                     let cleanDesc = randomManga.synopsis.replace(/<[^>]*>?/gm, '').replace(new RegExp(randomManga.title, 'gi'), '█████');
-                    let genres = randomManga.genres ? randomManga.genres.join(', ') : 'Desconhecidos';
                     
-                    let q = `[CONTRATO DE CAÇADA NO BANCO DE DADOS]\n\nGêneros: ${genres}\n\nFragmento:\n"${cleanDesc.substring(0, conf.charLimit)}..."\n\nSua Missão: Descubra qual é esta obra através dos gêneros e da sinopse, procure no catálogo e abra a página de Detalhes dela.`;
+                    let q = `[ARQUIVO DE BANCO DE DADOS LOCAL]\n\nFragmento:\n"${cleanDesc.substring(0, conf.charLimit)}..."\n\nQue obra é essa? Vá até a página dela para concluir o contrato.`;
                     
-                    newMission = { id: Date.now().toString(), type: 'search_local', difficulty, title: "Caçada Infinity", question: q, targetManga: randomManga.id, targetTitle: randomManga.title, rewardXp: conf.rxp, rewardCoins: conf.rcoin, penaltyXp: conf.pxp, penaltyCoins: conf.pcoin, deadline: now + (conf.time * 60 * 1000) };
+                    newMission = { id: Date.now().toString(), type: 'search_local', difficulty, title: "Caçada Infinity", question: q, targetManga: randomManga.id, targetTitle: randomManga.title, rewardXp: conf.rxp, rewardCoins: conf.rcoin, penaltyXp: conf.pxp, penaltyCoins: conf.pcoin, deadline: now + (conf.enigmaTimeMin * 60 * 1000) };
                     completed.push("enigma_local_" + randomManga.id);
                 }
-            } 
-            
-            // Se caiu Leitura, ou se não havia obras com sinopse suficiente no banco
-            if (!newMission) {
+            }
+
+            // Se mesmo assim falhar tudo, cai como leitura básica de compensação
+            if (!newMission && mangas.length > 0) {
                  const randomManga = mangas[Math.floor(Math.random() * mangas.length)];
                  let readTarget = difficulty === 'Rank E' ? 1 : difficulty === 'Rank C' ? 2 : difficulty === 'Rank B' ? 3 : difficulty === 'Rank A' ? 5 : difficulty === 'Rank S' ? 10 : 20;
                  if(randomManga.chapters && randomManga.chapters.length < readTarget) readTarget = randomManga.chapters.length || 1;
 
                  newMission = { id: Date.now().toString(), type: 'read', difficulty, title: `Missão de Leitura`, desc: `Leia ${readTarget} capítulo(s) da obra "${randomManga.title}".`, targetManga: randomManga.id, targetCount: readTarget, currentCount: 0, rewardXp: conf.rxp, rewardCoins: conf.rcoin, penaltyXp: conf.pxp, penaltyCoins: conf.pcoin, deadline: now + (readTarget * 45 * 60 * 1000) };
-                 completed.push("read_" + randomManga.id);
             }
 
-            await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'main'), { activeMission: newMission, completedMissions: completed });
-            showToast(`Contrato Assinado!`, "success");
+            if (newMission) {
+                await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'main'), { activeMission: newMission, completedMissions: completed });
+                showToast(`Contrato Assinado!`, "success");
+            } else {
+                showToast("Nenhuma missão disponível no momento.", "error");
+            }
         } catch(e) { showToast("Falha na Fenda do Nexo.", "error"); } finally { setIsForgingMission(false); }
+    };
+    
+    const handleEnigmaSubmit = async (e) => {
+        e.preventDefault(); const m = userProfileData.activeMission;
+        if (!m || m.type !== 'enigma') return;
+        if (!enigmaAnswer.trim()) return showToast("A resposta não pode ser vazia.", "warning");
+        const profileRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'main');
+        const userAnswer = enigmaAnswer.toLowerCase().trim();
+        const isCorrect = m.answer.some(ans => { const correctAns = ans.toLowerCase().trim(); return userAnswer === correctAns || (userAnswer.length >= 3 && (correctAns.includes(userAnswer) || userAnswer.includes(correctAns))); });
+        
+        if (isCorrect) {
+           let { newXp, newLvl, didLevelUp } = addXpLogic(userProfileData.xp || 0, userProfileData.level || 1, m.rewardXp);
+           let newCoins = (userProfileData.coins || 0) + m.rewardCoins;
+           let currentCompleted = userProfileData.completedMissions || [];
+           if (!currentCompleted.includes(m.question)) currentCompleted = [...currentCompleted, m.question];
+           await updateDoc(profileRef, { coins: newCoins, xp: newXp, level: newLvl, activeMission: null, completedMissions: currentCompleted });
+           setEnigmaAnswer(''); showToast(`Enigma Desvendado! Recebeu ${m.rewardXp} XP e ${m.rewardCoins} Moedas.`, "success");
+           if(didLevelUp) onLevelUp(newLvl); 
+        } else {
+           const attempts = m.attemptsLeft - 1;
+           if (attempts <= 0) {
+               let newCoins = Math.max(0, (userProfileData.coins || 0) - m.penaltyCoins);
+               let { newXp, newLvl } = removeXpLogic(userProfileData.xp || 0, userProfileData.level || 1, m.penaltyXp);
+               await updateDoc(profileRef, { coins: newCoins, xp: newXp, level: newLvl, activeMission: null });
+               showToast(`Falhou! O Sistema cobrou a penalidade.`, "error");
+           } else {
+               await updateDoc(profileRef, { 'activeMission.attemptsLeft': attempts }); showToast(`Incorreto. ${attempts} tentativa(s) restante(s).`, "error");
+           }
+           setEnigmaAnswer('');
+        }
     };
     
     const cancelMission = async () => {
@@ -146,7 +221,7 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
                 <div className="fixed inset-0 z-[3000] bg-[#020205]/95 backdrop-blur-xl flex flex-col items-center justify-center animate-in fade-in duration-300 w-full">
                     <style>{`@keyframes spin-slow { 100% { transform: rotate(360deg); } }`}</style>
                     <div className="relative w-48 h-48 flex items-center justify-center"><div className="absolute inset-0 bg-gradient-to-tr from-cyan-500 via-emerald-500 to-fuchsia-500 rounded-full blur-[40px] animate-pulse opacity-60"></div><div className="absolute inset-4 border-[2px] border-white/20 border-dashed rounded-full animate-[spin_4s_linear_infinite]"></div><div className="absolute inset-8 border-[3px] border-t-cyan-400 border-b-fuchsia-400 border-l-transparent border-r-transparent rounded-full animate-[spin_1.5s_linear_infinite]"></div><div className="absolute inset-12 bg-black/60 backdrop-blur-md rounded-full shadow-[0_0_30px_rgba(255,255,255,0.2)] flex items-center justify-center"><Zap className="w-10 h-10 text-white drop-shadow-[0_0_15px_#fff] animate-pulse" /></div></div>
-                    <h2 className="mt-12 text-lg md:text-xl font-black text-center text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 via-white to-fuchsia-300 tracking-[0.4em] md:tracking-[0.6em] animate-pulse">FORJANDO NEXO...</h2>
+                    <h2 className="mt-12 text-lg md:text-xl font-black text-center text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 via-white to-fuchsia-300 tracking-[0.4em] md:tracking-[0.6em] animate-pulse">FORJANDO...</h2>
                 </div>
             )}
             {confirmModal && (
@@ -181,7 +256,19 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
                                     <div className="bg-[#050508]/60 p-4 md:p-5 rounded-md border border-white/10 relative">
                                         <div className="flex items-center gap-2 mb-3 text-cyan-400"><Search className="w-5 h-5"/><span className="font-bold text-xs uppercase tracking-widest">Missão de Rastreio</span></div>
                                         <p className="text-sm font-medium text-gray-200 mb-5 leading-relaxed whitespace-pre-wrap border-l-2 border-cyan-500/50 pl-3">{userProfileData.activeMission.question}</p>
-                                        <div className="bg-cyan-900/20 border border-cyan-500/30 p-3 rounded-md text-xs text-cyan-100 font-bold flex items-center gap-3"><Compass className="w-6 h-6 flex-shrink-0 text-cyan-400"/>Para concluir o contrato, encontre a obra no catálogo e entre na página dela. Não é necessário digitar nada!</div>
+                                        <div className="bg-cyan-900/20 border border-cyan-500/30 p-3 rounded-md text-xs text-cyan-100 font-bold flex items-center gap-3"><Compass className="w-6 h-6 flex-shrink-0 text-cyan-400"/>Não digite nada! Apenas ache essa obra no catálogo do site e abra a página dela.</div>
+                                    </div>
+                                ) : userProfileData.activeMission.type === 'enigma' ? (
+                                    <div className="bg-[#050508]/60 p-4 md:p-5 rounded-md border border-white/10 relative">
+                                        <div className="flex items-center gap-2 mb-3 text-cyan-400"><Search className="w-5 h-5"/><span className="font-bold text-xs uppercase tracking-widest">Missão de Rastreio (Global)</span></div>
+                                        <p className="text-sm font-medium text-gray-200 mb-5 leading-relaxed whitespace-pre-wrap border-l-2 border-fuchsia-500/50 pl-3">{userProfileData.activeMission.question}</p>
+                                        <form onSubmit={handleEnigmaSubmit} className="flex flex-col gap-2 relative z-10">
+                                            <div className="relative"><Key className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-cyan-400" /><input type="text" value={enigmaAnswer} onChange={e=>setEnigmaAnswer(e.target.value)} placeholder="Sua resposta..." className="w-full bg-[#050508] border border-white/10 rounded-md pl-9 pr-3 py-2.5 text-white outline-none focus:border-cyan-500 transition-colors duration-300 font-bold text-sm shadow-inner" /></div>
+                                            <div className="flex gap-2 mt-1">
+                                                <button type="submit" className="flex-1 bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white font-black px-3 py-3 rounded-md hover:scale-[1.02] transition-transform flex items-center justify-center gap-1.5 text-sm shadow-md duration-300">Validar <Check className="w-4 h-4"/></button>
+                                                <div className="bg-[#050508] px-4 py-3 rounded-md border border-white/10 text-sm font-bold text-gray-400/60 flex items-center justify-center gap-1.5 shadow-inner">Vidas: <span className={userProfileData.activeMission.attemptsLeft === 1 ? 'text-red-500 font-black' : 'text-cyan-400 font-black'}>{userProfileData.activeMission.attemptsLeft}</span></div>
+                                            </div>
+                                        </form>
                                     </div>
                                 ) : (
                                     <div className="bg-[#050508]/60 p-4 rounded-md border border-white/10">
@@ -214,7 +301,7 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
                                     <div key={rank.id} className={`bg-[#0d0d12] border ${rank.border} ${rank.hover} transition-colors duration-300 p-4 rounded-xl flex flex-col group shadow-sm`}>
                                         <div className="flex justify-between items-center mb-3"><div className={`${rank.color} font-black text-xl group-hover:scale-105 transition-transform origin-left`}>{rank.id}</div><div className="text-xs font-bold text-gray-400/60 text-right">+{rank.rxp}XP | +{rank.rcoin}M</div></div>
                                         <div className="flex flex-col gap-1 mb-4 mt-2">
-                                            <div className="flex justify-between text-xs text-gray-400/60"><span className="flex items-center gap-1"><Target className="w-4 h-4"/> Missões Puras</span><span className="font-bold text-gray-300/80">Busca ou Leitura</span></div>
+                                            <div className="flex justify-between text-xs text-gray-400/60"><span className="flex items-center gap-1"><Target className="w-4 h-4"/> Tipo Est.</span><span className="font-bold text-gray-300/80">Busca ou Leitura</span></div>
                                             <div className="flex justify-between text-xs text-gray-400/60"><span className="flex items-center gap-1"><Clock className="w-4 h-4"/> Tempo Est.</span><span className="font-bold text-gray-300/80">{rank.time}</span></div>
                                         </div>
                                         <button onClick={() => setConfirmModal(rank.id)} className={`w-full ${rank.btn} text-white text-sm font-bold py-3 rounded-md transition-colors mt-auto flex items-center justify-center gap-2 duration-300`}>Assinar Contrato</button>
@@ -223,12 +310,12 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
                             </div>
                             <div className="bg-amber-950/20 border border-amber-900/50 hover:border-amber-500/80 transition-colors duration-300 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-1 shadow-sm">
                                 <div><div className="text-amber-500 font-black text-xl flex items-center gap-1.5 mb-1">Rank S <Star className="w-4 h-4 fill-current"/></div><div className="text-xs font-bold text-gray-400/60 flex gap-2"><span className="text-amber-400">+800XP / +400M</span> <span>• Alta dificuldade</span></div></div>
-                                <button onClick={() => setConfirmModal('Rank S')} className="w-full sm:w-auto bg-amber-600 hover:bg-amber-500 text-white text-sm font-bold px-8 py-3 rounded-md transition-colors duration-300 flex items-center justify-center min-w-[120px]">Aceitar Nexo</button>
+                                <button onClick={() => setConfirmModal('Rank S')} className="w-full sm:w-auto bg-amber-600 hover:bg-amber-500 text-white text-sm font-bold px-8 py-3 rounded-md transition-colors duration-300 flex items-center justify-center min-w-[120px]">Aceitar Contrato</button>
                             </div>
                             <div className="bg-red-950/20 border border-red-900/80 hover:border-red-500/80 transition-colors duration-300 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-1 relative overflow-hidden shadow-sm">
                                 <div className="absolute top-0 right-0 w-24 h-24 bg-red-600/10 blur-[30px] rounded-full pointer-events-none"></div>
-                                <div className="relative z-10"><div className="text-red-500 font-black text-2xl flex items-center gap-1.5 mb-1">Rank SSS <Skull className="w-5 h-5"/></div><div className="text-xs font-bold text-gray-400/60 flex gap-2"><span className="text-red-400">+2000XP / +1000M</span> <span>• Risco de Morte</span></div></div>
-                                <button onClick={() => setConfirmModal('Rank SSS')} className="w-full sm:w-auto bg-red-800 hover:bg-red-600 text-white text-sm font-black px-8 py-3 rounded-md transition-colors duration-300 shadow-lg relative z-10 flex items-center justify-center min-w-[120px]">Desafiar Nexo</button>
+                                <div className="relative z-10"><div className="text-red-500 font-black text-2xl flex items-center gap-1.5 mb-1">Rank SSS <Skull className="w-5 h-5"/></div><div className="text-xs font-bold text-gray-400/60 flex gap-2"><span className="text-red-400">+2000XP / +1000M</span> <span>• Extremo</span></div></div>
+                                <button onClick={() => setConfirmModal('Rank SSS')} className="w-full sm:w-auto bg-red-800 hover:bg-red-600 text-white text-sm font-black px-8 py-3 rounded-md transition-colors duration-300 shadow-lg relative z-10 flex items-center justify-center min-w-[120px]">Desafiar Sistema</button>
                             </div>
                         </div>
                     )}
@@ -285,7 +372,7 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
                 </div>
             )}
 
-            {/* NOVA ABA: RANKING GLOBAL */}
+            {/* ABA: RANKING GLOBAL */}
             {activeTab === "Ranking" && (
                 <div className="animate-in fade-in duration-500">
                     <div className="bg-gradient-to-b from-[#0d0d12] to-[#050508] border border-white/10 p-5 rounded-xl shadow-2xl relative overflow-hidden">
@@ -294,7 +381,8 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
                         
                         <div className="text-center mb-8 relative z-10">
                             <h3 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-fuchsia-400 tracking-widest uppercase mb-2 drop-shadow-md">Top Leitores</h3>
-                            <p className="text-gray-400/80 text-xs font-bold">Os Monarcas do Multiverso. Classificação por Nível e XP.</p>
+                            {/* Alterado texto do Monarcas */}
+                            <p className="text-gray-400/80 text-xs font-bold">A Elite do Multiverso. Classificação por Nível e XP.</p>
                         </div>
 
                         {loadingRank ? (
@@ -329,7 +417,8 @@ export function NexoView({ user, userProfileData, showToast, mangas, db, appId, 
                                                 <img src={rankingList[0].avatarUrl || `https://placehold.co/100x100/0d0d12/facc15?text=1`} className="w-full h-full object-cover" />
                                             </div>
                                             <div className="h-24 sm:h-32 w-20 sm:w-24 bg-gradient-to-t from-[#050508] to-yellow-900/30 mt-3 rounded-t-lg border-t-2 border-yellow-400 flex flex-col items-center justify-start pt-3 shadow-[0_-5px_20px_rgba(250,204,21,0.1)]">
-                                                <span className="text-yellow-400 font-black text-sm truncate w-full text-center px-1">{rankingList[0].name || 'Monarca'}</span>
+                                                {/* Alterado texto do Monarca */}
+                                                <span className="text-yellow-400 font-black text-sm truncate w-full text-center px-1">{rankingList[0].name || 'Mestre'}</span>
                                                 <span className="text-[10px] text-yellow-500/80 font-black mt-1">Lvl {rankingList[0].level || 1}</span>
                                             </div>
                                         </div>
