@@ -3,19 +3,17 @@ import { ChevronLeft, ChevronRight, Star, ZoomIn, ZoomOut } from 'lucide-react';
 
 export default function ReaderView({ manga, chapter, user, userProfileData, onBack, onChapterClick, triggerRandomDrop, onMarkAsRead, readMode, onRequireLogin, showToast, libraryData, onToggleLibrary }) {
   const [showUI, setShowUI] = useState(true);
-  const [zoom, setZoom] = useState(1); // 1 = 100%, 0.5 = 50%, 0.75 = 75%
+  const [zoom, setZoom] = useState(1); 
   
   const readingTimeRef = useRef(0);
   const [currentPage, setCurrentPage] = useState(0);
 
-  // Efeito 1: Rola para o topo apenas quando o capítulo muda (Isso resolve o bug de ficar puxando pra cima)
   useEffect(() => {
       window.scrollTo(0, 0);
       setCurrentPage(0);
       setZoom(1);
   }, [chapter.id]);
 
-  // Efeito 2: Timer de leitura
   useEffect(() => {
       readingTimeRef.current = 0;
       const timer = setInterval(() => { readingTimeRef.current += 1; }, 1000);
@@ -23,7 +21,7 @@ export default function ReaderView({ manga, chapter, user, userProfileData, onBa
           clearInterval(timer);
           onMarkAsRead(manga, chapter, readingTimeRef.current >= 45);
       };
-  }, [manga.id, chapter.id]); // Removido o onMarkAsRead daqui para não causar re-render
+  }, [manga.id, chapter.id]); 
 
   const currentIndex = manga.chapters.findIndex(c => c && c.id === chapter.id);
   const nextChapter = currentIndex > 0 ? manga.chapters[currentIndex - 1] : null; 
@@ -36,22 +34,50 @@ export default function ReaderView({ manga, chapter, user, userProfileData, onBa
       if (Math.random() < 0.005) triggerRandomDrop();
   };
 
-  // Ciclo do Zoom: 100% -> 50% -> 75% -> 100%
   const handleZoom = (e) => {
       e.stopPropagation();
       setZoom(prev => prev === 1 ? 0.5 : prev === 0.5 ? 0.75 : 1);
   };
 
   return (
-      // select-none na div principal bloqueia a cópia no leitor inteiro
       <div className="min-h-screen bg-[#030407] text-white relative flex flex-col overflow-x-hidden select-none" onScroll={handleScroll}>
+         
+         {/* INJEÇÃO DE CSS PARA ANIMAÇÃO SURREAL */}
+         <style>{`
+            @keyframes surrealPageIn {
+                0% {
+                    opacity: 0;
+                    transform: translateX(100vw) perspective(1000px) rotateY(-30deg) scale(0.8);
+                    filter: saturate(3) brightness(1.5) blur(10px);
+                }
+                30% {
+                    opacity: 1;
+                    transform: translateX(-5vw) perspective(1000px) rotateY(10deg) scale(1.05);
+                    filter: saturate(2) brightness(1.2) blur(0px);
+                }
+                60% {
+                    transform: translateX(1vw) perspective(1000px) rotateY(-5deg) scale(0.98);
+                    filter: saturate(1.5) brightness(1.1);
+                }
+                100% {
+                    opacity: 1;
+                    transform: translateX(0) perspective(1000px) rotateY(0) scale(1);
+                    filter: saturate(1) brightness(1) blur(0px);
+                }
+            }
+            
+            .animate-surreal-page {
+                animation: surrealPageIn 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+                will-change: transform, opacity, filter;
+            }
+         `}</style>
+
          {/* Barra Superior */}
          {showUI && (
             <div className="fixed top-0 left-0 right-0 h-16 bg-[#030407]/95 backdrop-blur-xl z-50 flex justify-between items-center px-4 border-b border-white/5 shadow-md transition-opacity">
                <div className="flex items-center gap-3 overflow-hidden">
                   <button onClick={onBack} className="p-2 hover:text-cyan-400 transition-colors flex-shrink-0"><ChevronLeft className="w-6 h-6"/></button>
                   <div className="flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
-                     {/* select-text EXCLUSIVO no nome da obra, conforme você pediu */}
                      <span className="text-xs text-gray-400/80 font-bold truncate select-text cursor-text">{manga.title}</span>
                      <span className="text-sm font-black text-cyan-400 truncate">Capítulo {chapter.number}</span>
                   </div>
@@ -68,12 +94,11 @@ export default function ReaderView({ manga, chapter, user, userProfileData, onBa
             </div>
          )}
 
-         {/* Área de Leitura - Animação alterada para fade-in limpo */}
-         <div key={chapter.id} className="flex-1 w-full mx-auto cursor-pointer animate-in fade-in duration-500 overflow-x-auto" onClick={() => setShowUI(!showUI)}>
+         {/* Área de Leitura - APLICAÇÃO DA ANIMAÇÃO SURREAL */}
+         <div key={chapter.id} className="flex-1 w-full mx-auto cursor-pointer animate-surreal-page overflow-x-auto origin-right" onClick={() => setShowUI(!showUI)}>
             {readMode === 'Páginas' ? (
                <div className="w-full h-screen flex flex-col items-center justify-center pt-16 pb-20 px-2 relative overflow-hidden">
-                  {/* Zoom aplicado na largura e não no transform para evitar o bug do scroll */}
-                  <img src={pages[currentPage]} className="max-h-full object-contain shadow-2xl transition-all duration-300" style={{ width: `${zoom * 100}%` }} />
+                  <img src={pages[currentPage]} className="max-w-full object-contain shadow-2xl transition-all duration-300" style={{ width: `${zoom * 100}%` }} />
                   
                   <div className="absolute inset-y-16 left-0 w-1/3 z-10 cursor-pointer" onClick={(e) => { e.stopPropagation(); setCurrentPage(p => Math.max(0, p - 1)); }}></div>
                   <div className="absolute inset-y-16 right-0 w-1/3 z-10 cursor-pointer" onClick={(e) => { e.stopPropagation(); setCurrentPage(p => Math.min(pages.length - 1, p + 1)); }}></div>
