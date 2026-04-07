@@ -39,12 +39,12 @@ export function LoginView({ onLoginSuccess, onGuestAccess }) {
       <div className="bg-[#0d0d12]/80 backdrop-blur-2xl border border-white/10 w-full max-w-md rounded-xl shadow-[0_0_50px_-10px_rgba(34,211,238,0.1)] p-8 z-10 relative animate-in slide-in-from-bottom-8">
         <div className="text-center mb-8">
           <div className="w-16 h-16 bg-[#050508] rounded-lg flex items-center justify-center mx-auto mb-4 shadow-inner border border-white/10"><BookOpen className="w-8 h-8 text-cyan-400" /></div>
-          <h2 className="text-2xl font-black text-white">{isLogin ? 'Bem-vindo de volta' : 'Despertar'}</h2>
+          <h2 className="text-2xl font-black text-white">{isLogin ? 'Bem-vindo de volta' : 'Novo Registro'}</h2>
           <p className="text-gray-400/60 mt-2 text-sm font-medium">Faça login para favoritar e guardar o seu progresso.</p>
         </div>
         {error && <div className="bg-red-500/10 text-red-400 p-3 rounded-md mb-5 text-sm font-bold border border-red-500/20 text-center animate-in zoom-in-95">{error}</div>}
         <form onSubmit={handleSubmit} className="space-y-4">
-          {!isLogin && <input type="text" value={name} onChange={e=>setName(e.target.value)} placeholder="Ex: Monarca das Sombras" className="w-full bg-[#050508] border border-white/10 rounded-md px-4 py-3 text-white outline-none focus:border-cyan-500 transition-colors font-medium text-sm" required />}
+          {!isLogin && <input type="text" value={name} onChange={e=>setName(e.target.value)} placeholder="Ex: Leitor Fantasma" className="w-full bg-[#050508] border border-white/10 rounded-md px-4 py-3 text-white outline-none focus:border-cyan-500 transition-colors font-medium text-sm" required />}
           <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="seu.email@dominio.com" className="w-full bg-[#050508] border border-white/10 rounded-md px-4 py-3 text-white outline-none focus:border-cyan-500 transition-colors font-medium text-sm" required />
           <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Senha secreta (Mín. 6 caracteres)" className="w-full bg-[#050508] border border-white/10 rounded-md px-4 py-3 text-white outline-none focus:border-cyan-500 transition-colors font-medium text-sm" required />
           <button type="submit" disabled={loading} className="w-full bg-gradient-to-r from-cyan-600 to-fuchsia-600 text-white font-black py-3 rounded-md mt-4 flex justify-center items-center gap-2 transition-all shadow-[0_10px_30px_-10px_rgba(217,70,239,0.3)] disabled:opacity-70 hover:scale-[1.02] duration-300">
