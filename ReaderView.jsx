@@ -1,17 +1,27 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronLeft, ChevronRight, Star, ZoomIn, ZoomOut } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Star, ZoomIn, ZoomOut, Hexagon, Infinity as InfinityIcon } from 'lucide-react';
 
 export default function ReaderView({ manga, chapter, user, userProfileData, onBack, onChapterClick, triggerRandomDrop, onMarkAsRead, readMode, onRequireLogin, showToast, libraryData, onToggleLibrary }) {
   const [showUI, setShowUI] = useState(true);
   const [zoom, setZoom] = useState(1); 
+  const [isChapterLoading, setIsChapterLoading] = useState(true); // O ESTADO DE CARREGAMENTO!
   
   const readingTimeRef = useRef(0);
   const [currentPage, setCurrentPage] = useState(0);
 
+  // Controle de Mudança de Capítulo
   useEffect(() => {
+      setIsChapterLoading(true); // Aciona a tela de carregamento surreal
       window.scrollTo(0, 0);
       setCurrentPage(0);
       setZoom(1);
+      
+      // O portal gira por 1.5s antes de revelar as páginas
+      const loadTimer = setTimeout(() => {
+          setIsChapterLoading(false);
+      }, 1500);
+
+      return () => clearTimeout(loadTimer);
   }, [chapter.id]);
 
   useEffect(() => {
@@ -31,7 +41,7 @@ export default function ReaderView({ manga, chapter, user, userProfileData, onBa
   const pages = chapter.pages && chapter.pages.length > 0 ? chapter.pages : mockPages;
 
   const handleScroll = () => {
-      if (Math.random() < 0.005) triggerRandomDrop();
+      if (!isChapterLoading && Math.random() < 0.005) triggerRandomDrop();
   };
 
   const handleZoom = (e) => {
@@ -42,19 +52,39 @@ export default function ReaderView({ manga, chapter, user, userProfileData, onBa
   return (
       <div className="min-h-screen bg-[#030407] text-white relative flex flex-col overflow-x-hidden select-none" onScroll={handleScroll}>
          
-         {/* NOVA ANIMAÇÃO: Materialização Etérea (Suave, brilhante e rápida) */}
+         {/* TELA DE CARREGAMENTO F*DA (O PORTAL SURREAL) */}
          <style>{`
-            @keyframes etherealFade {
-                0% { opacity: 0; filter: blur(15px) brightness(1.5); transform: scale(0.98); }
-                100% { opacity: 1; filter: blur(0px) brightness(1); transform: scale(1); }
+            @keyframes portalSpin {
+                0% { transform: rotate(0deg) scale(0.8); filter: hue-rotate(0deg); }
+                50% { transform: rotate(180deg) scale(1.3); filter: hue-rotate(180deg) drop-shadow(0 0 40px #d946ef); }
+                100% { transform: rotate(360deg) scale(0.8); filter: hue-rotate(360deg); }
             }
-            .animate-ethereal {
-                animation: etherealFade 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+            .loader-portal {
+                animation: portalSpin 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+            }
+            @keyframes pulseText {
+                0%, 100% { opacity: 0.5; letter-spacing: 0.2em; }
+                50% { opacity: 1; letter-spacing: 0.4em; text-shadow: 0 0 20px #22d3ee; }
+            }
+            .loader-text {
+                animation: pulseText 1.5s ease-in-out infinite;
             }
          `}</style>
 
-         {showUI && (
-            <div className="fixed top-0 left-0 right-0 h-16 bg-[#030407]/95 backdrop-blur-xl z-50 flex justify-between items-center px-4 border-b border-white/5 shadow-md transition-opacity">
+         {isChapterLoading && (
+             <div className="fixed inset-0 z-[9999] bg-[#020205] flex flex-col items-center justify-center">
+                 <div className="relative w-40 h-40 flex items-center justify-center loader-portal mb-8">
+                    <Hexagon className="absolute w-full h-full text-cyan-500 opacity-50" strokeWidth={0.5} />
+                    <Hexagon className="absolute w-3/4 h-3/4 text-fuchsia-500 animate-[spin_3s_linear_reverse_infinite]" strokeWidth={1} />
+                    <InfinityIcon className="w-16 h-16 text-white drop-shadow-[0_0_15px_#fff]" />
+                 </div>
+                 <h2 className="text-cyan-400 font-black text-xl loader-text uppercase">Sincronizando...</h2>
+             </div>
+         )}
+
+         {/* Barra Superior */}
+         {showUI && !isChapterLoading && (
+            <div className="fixed top-0 left-0 right-0 h-16 bg-[#030407]/95 backdrop-blur-xl z-50 flex justify-between items-center px-4 border-b border-white/5 shadow-md transition-opacity animate-in slide-in-from-top-full">
                <div className="flex items-center gap-3 overflow-hidden">
                   <button onClick={onBack} className="p-2 hover:text-cyan-400 transition-colors flex-shrink-0"><ChevronLeft className="w-6 h-6"/></button>
                   <div className="flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
@@ -74,28 +104,31 @@ export default function ReaderView({ manga, chapter, user, userProfileData, onBa
             </div>
          )}
 
-         {/* Container com a nova animação conectada */}
-         <div key={chapter.id} className="flex-1 w-full mx-auto cursor-pointer animate-ethereal overflow-x-auto origin-center" onClick={() => setShowUI(!showUI)}>
-            {readMode === 'Páginas' ? (
-               <div className="w-full h-screen flex flex-col items-center justify-center pt-16 pb-20 px-2 relative overflow-hidden">
-                  <img src={pages[currentPage]} className="max-h-full object-contain shadow-2xl transition-all duration-300" style={{ width: `${zoom * 100}%` }} />
-                  
-                  <div className="absolute inset-y-16 left-0 w-1/3 z-10 cursor-pointer" onClick={(e) => { e.stopPropagation(); setCurrentPage(p => Math.max(0, p - 1)); }}></div>
-                  <div className="absolute inset-y-16 right-0 w-1/3 z-10 cursor-pointer" onClick={(e) => { e.stopPropagation(); setCurrentPage(p => Math.min(pages.length - 1, p + 1)); }}></div>
-                  
-                  {showUI && <div className="absolute bottom-24 bg-black/80 px-4 py-1 rounded-full text-xs font-bold shadow-lg pointer-events-none">{currentPage + 1} / {pages.length}</div>}
-               </div>
-            ) : (
-               <div className="flex flex-col items-center pt-16 pb-20 transition-all duration-300 mx-auto" style={{ width: `${zoom * 100}%` }}>
-                  {pages.map((p, i) => (
-                     <img key={i} src={p} className="w-full object-contain mb-1" loading="lazy" />
-                  ))}
-               </div>
-            )}
-         </div>
+         {/* Área de Leitura */}
+         {!isChapterLoading && (
+             <div className="flex-1 w-full mx-auto cursor-pointer overflow-x-auto origin-center animate-in fade-in duration-700" onClick={() => setShowUI(!showUI)}>
+                {readMode === 'Páginas' ? (
+                   <div className="w-full h-screen flex flex-col items-center justify-center pt-16 pb-20 px-2 relative overflow-hidden">
+                      <img src={pages[currentPage]} className="max-h-full object-contain shadow-2xl transition-all duration-300" style={{ width: `${zoom * 100}%` }} />
+                      
+                      <div className="absolute inset-y-16 left-0 w-1/3 z-10 cursor-pointer" onClick={(e) => { e.stopPropagation(); setCurrentPage(p => Math.max(0, p - 1)); }}></div>
+                      <div className="absolute inset-y-16 right-0 w-1/3 z-10 cursor-pointer" onClick={(e) => { e.stopPropagation(); setCurrentPage(p => Math.min(pages.length - 1, p + 1)); }}></div>
+                      
+                      {showUI && <div className="absolute bottom-24 bg-black/80 px-4 py-1 rounded-full text-xs font-bold shadow-lg pointer-events-none animate-in fade-in">{currentPage + 1} / {pages.length}</div>}
+                   </div>
+                ) : (
+                   <div className="flex flex-col items-center pt-16 pb-20 transition-all duration-300 mx-auto" style={{ width: `${zoom * 100}%` }}>
+                      {pages.map((p, i) => (
+                         <img key={i} src={p} className="w-full object-contain mb-1" loading="lazy" />
+                      ))}
+                   </div>
+                )}
+             </div>
+         )}
 
-         {showUI && (
-            <div className="fixed bottom-0 left-0 right-0 bg-[#030407]/95 backdrop-blur-xl z-50 p-4 border-t border-white/5 shadow-lg flex justify-between items-center transition-opacity">
+         {/* Barra Inferior */}
+         {showUI && !isChapterLoading && (
+            <div className="fixed bottom-0 left-0 right-0 bg-[#030407]/95 backdrop-blur-xl z-50 p-4 border-t border-white/5 shadow-lg flex justify-between items-center transition-opacity animate-in slide-in-from-bottom-full">
                <button onClick={() => prevChapter && onChapterClick(manga, prevChapter)} disabled={!prevChapter} className="bg-[#0d0d12] disabled:opacity-30 disabled:hover:border-white/10 border border-white/10 hover:border-cyan-500 px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-1 transition-colors"><ChevronLeft className="w-4 h-4"/> Anterior</button>
                
                {readMode === 'Páginas' && (
