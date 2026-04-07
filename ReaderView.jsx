@@ -2,6 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ChevronLeft, ChevronRight, Star, ZoomIn } from 'lucide-react';
 
 export default function ReaderView({ manga, chapter, user, userProfileData, onBack, onChapterClick, triggerRandomDrop, onMarkAsRead, readMode, onRequireLogin, showToast, libraryData, onToggleLibrary }) {
+  // A linha abaixo é a que estava faltando e causou o erro:
+  const [showUI, setShowUI] = useState(true);
+  
+  const readingTimeRef = useRef(0);
+  const [currentPage, setCurrentPage] = useState(0);
+
   useEffect(() => {
       readingTimeRef.current = 0;
       const timer = setInterval(() => { readingTimeRef.current += 1; }, 1000);
@@ -11,7 +17,7 @@ export default function ReaderView({ manga, chapter, user, userProfileData, onBa
       };
   }, [manga, chapter, onMarkAsRead]);
 
-  const currentIndex = manga.chapters.findIndex(c => c.id === chapter.id);
+  const currentIndex = manga.chapters.findIndex(c => c && c.id === chapter.id);
   const nextChapter = currentIndex > 0 ? manga.chapters[currentIndex - 1] : null; 
   const prevChapter = currentIndex < manga.chapters.length - 1 ? manga.chapters[currentIndex + 1] : null;
 
